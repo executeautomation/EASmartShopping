@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EA SmartKart Backend Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# Changes here take effect on the next backend restart.
+# Any value can also be overridden with an environment variable (see comments).
+
+ollama:
+  # Base URL of the Ollama server
+  # Env override: OLLAMA_BASE_URL
+  base_url: "http://localhost:11434"
+
+  # Model used for chat / RAG responses.
+  # Run `ollama list` to see available models.
+  # Env override: OLLAMA_CHAT_MODEL
+  chat_model: "gemma4:e2b"
+
+  # Embedding model used to build the product vector store.
+  # Env override: OLLAMA_EMBED_MODEL
+  embed_model: "nomic-embed-text"
+
+llm:
+  # Sampling temperature (0.0 = deterministic, 1.0 = creative)
+  temperature: 0.7
+
+  # Max tokens to generate per response.
+  # Set to -1 for unlimited (required when reasoning is enabled).
+  max_tokens: 400
+
+  # Enable chain-of-thought reasoning (Qwen3 / compatible models only).
+  # WARNING: adds 30-100 s latency and requires max_tokens: -1
+  reasoning: false
+
+chat:
+  # How many past conversation turns to keep in context (each turn = 1 user + 1 AI message)
+  max_history_turns: 8
+
+  # Queries with fewer words than this threshold trigger broad RAG retrieval
+  vague_query_max_words: 8
