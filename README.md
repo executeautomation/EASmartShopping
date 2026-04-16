@@ -1,4 +1,4 @@
-# EA SmartKart - Full-Stack E-Commerce Platform
+# ShopSmart - Full-Stack E-Commerce Platform
 
 A full-stack e-commerce application featuring a Next.js frontend, Python FastAPI backend, RAG-powered chatbot, and an MCP server for programmatic access.
 

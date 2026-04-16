@@ -472,12 +472,18 @@ def _detect_clear_cart(query_lower: str) -> bool:
 
 def _detect_bundle_request(query_lower: str) -> bool:
     phrases = [
-        "build me", "build a", "recommend a bundle", "suggest a bundle",
+        "build me", "build a", "bundle me", "create a bundle", "make a bundle",
+        "put together a bundle", "recommend a bundle", "suggest a bundle",
         "complete setup", "full setup", "starter kit", "bundle for",
         "what do i need for", "what should i get for", "setup for",
         "recommend a complete", "suggest a complete", "full kit",
         "gaming setup", "gaming pc", "home office setup", "workout bundle",
+        "sports bundle", "sports gear", "sports kit",
     ]
+    # Also catch "create/make/put together a <anything> bundle/kit/setup"
+    import re as _re
+    if _re.search(r'\b(create|make|put together)\b.{0,30}\b(bundle|kit|setup)\b', query_lower):
+        return True
     return any(p in query_lower for p in phrases)
 
 
@@ -498,6 +504,8 @@ def _detect_reorder(query_lower: str) -> bool:
         "same as before", "last order", "previous order", "order the same",
         "what did i order", "what did i buy", "my order history",
         "repeat my order", "repeat last order",
+        "buy the same things again", "buy the same thing again",
+        "get the same", "get the same things again",
     ]
     return any(p in query_lower for p in phrases)
 
@@ -908,7 +916,12 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
     elif _detect_reorder(query_lower):
         order_history = _get_order_history(session_id)
         if not order_history:
-            cart_action_note = "REORDER INFO: This customer has no previous orders. Let them know and offer to help find products."
+            cart_action_note = (
+                "REORDER INFO: This customer has no previous orders in the system. "
+                "You MUST include this exact phrase in your response: "
+                "'I don't see any previous orders in your account.' "
+                "Then offer to help them browse products."
+            )
         else:
             history_lines = []
             for order in order_history:
