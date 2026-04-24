@@ -16,7 +16,7 @@ ollama:
 
   # Embedding model used to build the product vector store.
   # Env override: OLLAMA_EMBED_MODEL
-  embed_model: "nomic-embed-text"
+  embed_model: "nomic-embed-text-v2-moe"
 
 llm:
   # Sampling temperature (0.0 = deterministic, 1.0 = creative)
