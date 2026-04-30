@@ -11,6 +11,10 @@ class ProductBase(BaseModel):
     image_url: str = ""
     stock: int = Field(ge=0, default=0)
     options: list[dict[str, Any]] = []
+    rating: float = 0.0
+    review_count: int = 0
+    specs: dict[str, Any] = {}
+    manufacturer: str = ""
 
 
 class ProductCreate(ProductBase):

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchProducts, fetchSimilarProducts, addToCart, type Product } from "@/lib/api";
+import Link from "next/link";
+import { fetchProducts, addToCart, type Product } from "@/lib/api";
 
 const CATEGORY_ICONS: Record<string, string> = {
   Clothing: "👕", Sports: "🏃", Bags: "🎒",
@@ -8,37 +9,9 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Computer Components": "🖥️",
 };
 
-const COLOR_MAP: Record<string, string> = {
-  Black: "#111827", "Midnight Black": "#111827", "Charcoal Black": "#1f2937",
-  White: "#f9fafb", "Pearl White": "#f1f5f9", "Matte White": "#f8fafc", "Arctic White": "#ffffff",
-  Navy: "#1e3a5f", "Navy Blue": "#1e3a5f", "Midnight Navy": "#1e3a5f",
-  Gray: "#6b7280", "Slate Gray": "#64748b", "Space Gray": "#374151",
-  Burgundy: "#7f1d1d", "Rose Gold": "#c2856b", "Rose Blush": "#fbb6ce",
-  Blue: "#2563eb", "Ocean Blue": "#0284c7", "Pacific Blue": "#0369a1", "Slate Blue": "#475569",
-  Green: "#16a34a", "Forest Green": "#15803d", "Sage Green": "#84cc16",
-  Coral: "#f97316", Red: "#ef4444", "Product Red": "#dc2626",
-  Teal: "#0d9488", Purple: "#9333ea", "Deep Plum": "#6b21a8",
-  Sand: "#d4b896", Tan: "#c9a47b", "Cognac Brown": "#92400e", Brown: "#78350f",
-  Terracotta: "#c2440e", Olive: "#65a30d", "Olive Drab": "#4d7c0f",
-  Rust: "#c2410c", Natural: "#d4b896", "Natural Canvas": "#d4b896",
-};
-
 function isImageUrl(s: string) {
   return s.startsWith("http");
 }
-
-function isColorOption(name: string) {
-  return name.toLowerCase().includes("color") || name.toLowerCase() === "wash" || name.toLowerCase() === "band color";
-}
-
-function toColor(val: string): string | null {
-  for (const [k, v] of Object.entries(COLOR_MAP)) {
-    if (val.toLowerCase().includes(k.toLowerCase())) return v;
-  }
-  return null;
-}
-
-interface Selections { [optionName: string]: string }
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -48,9 +21,7 @@ export default function HomePage() {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [adding, setAdding] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [selections, setSelections] = useState<Record<number, Selections>>({});
   const [searchMode, setSearchMode] = useState<"keyword" | "semantic">("keyword");
-  const [similarProducts, setSimilarProducts] = useState<Record<number, Product[]>>({});
 
   // Load all products once to build category counts
   useEffect(() => {
@@ -84,32 +55,7 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const setOption = (productId: number, optName: string, value: string) => {
-    setSelections((prev) => ({
-      ...prev,
-      [productId]: { ...(prev[productId] || {}), [optName]: value },
-    }));
-  };
 
-  const allOptionsSelected = (product: Product) => {
-    if (!product.options.length) return true;
-    const sel = selections[product.id] || {};
-    return product.options.every((opt) => !!sel[opt.name]);
-  };
-
-  const handleAddToCart = async (product: Product) => {
-    const key = `${product.id}`;
-    if (!allOptionsSelected(product)) {
-      showToast("Please select all options first", false);
-      return;
-    }
-    setAdding(key);
-    try {
-      await addToCart(product.id, 1, selections[product.id] || {});
-      showToast(`Added "${product.name}" to cart!`, true);
-    } catch { showToast("Failed to add to cart", false); }
-    finally { setAdding(null); }
-  };
 
   return (
     <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start" }}>
@@ -274,8 +220,6 @@ export default function HomePage() {
           gap: "1.25rem",
         }}>
           {products.map((product) => {
-            const sel = selections[product.id] || {};
-            const ready = allOptionsSelected(product);
             const isAdding = adding === `${product.id}`;
 
             return (
@@ -290,173 +234,154 @@ export default function HomePage() {
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
                   (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow)";
-                  if (!similarProducts[product.id]) {
-                    fetchSimilarProducts(product.id).then(similar => {
-                      if (similar.length > 0) {
-                        setSimilarProducts(prev => ({...prev, [product.id]: similar}));
-                      }
-                    });
-                  }
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
                   (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow-sm)";
                 }}
               >
-                {/* Image area */}
-                <div style={{
-                  background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
-                  height: "200px",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "3.5rem",
-                  position: "relative",
-                  overflow: "hidden",
-                }}>
-                  {isImageUrl(product.image_url) ? (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      onError={(e) => {
-                        const parent = (e.currentTarget as HTMLImageElement).parentElement!;
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                        const fb = document.createElement("span");
-                        fb.textContent = CATEGORY_ICONS[product.category] || "📦";
-                        fb.style.fontSize = "3.5rem";
-                        parent.appendChild(fb);
-                      }}
-                    />
-                  ) : (
-                    product.image_url
-                  )}
-                  <span style={{
-                    position: "absolute", top: "10px", left: "10px",
-                    background: "rgba(255,255,255,0.85)", backdropFilter: "blur(4px)",
-                    padding: "3px 10px", borderRadius: "99px",
-                    fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)",
-                    border: "1px solid rgba(79,70,229,0.2)",
+                {/* Image area — links to detail page */}
+                <Link href={`/products/${product.id}`} style={{ display: "block", textDecoration: "none" }}>
+                  <div style={{
+                    background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                    height: "200px",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "3.5rem",
+                    position: "relative",
+                    overflow: "hidden",
                   }}>
-                    {CATEGORY_ICONS[product.category] || "📦"} {product.category}
-                  </span>
-                </div>
+                    {product.image_url.startsWith("http") ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        onError={(e) => {
+                          const parent = (e.currentTarget as HTMLImageElement).parentElement!;
+                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                          const fb = document.createElement("span");
+                          fb.textContent = CATEGORY_ICONS[product.category] || "📦";
+                          fb.style.fontSize = "3.5rem";
+                          parent.appendChild(fb);
+                        }}
+                      />
+                    ) : (
+                      product.image_url
+                    )}
+                    <span style={{
+                      position: "absolute", top: "10px", left: "10px",
+                      background: "rgba(255,255,255,0.85)", backdropFilter: "blur(4px)",
+                      padding: "3px 10px", borderRadius: "99px",
+                      fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)",
+                      border: "1px solid rgba(79,70,229,0.2)",
+                    }}>
+                      {CATEGORY_ICONS[product.category] || "📦"} {product.category}
+                    </span>
+                  </div>
+                </Link>
 
                 {/* Content */}
-                <div style={{ padding: "1rem", flex: 1, display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                  <h3 style={{ fontWeight: 700, fontSize: "0.95rem", lineHeight: "1.4", color: "var(--text)" }}>
-                    {product.name}
-                  </h3>
-                  <p style={{ color: "var(--text-2)", fontSize: "0.8rem", lineHeight: "1.5", flex: 1 }}>
-                    {product.description.substring(0, 90)}…
-                  </p>
+                <div style={{ padding: "1rem", flex: 1, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <Link href={`/products/${product.id}`} style={{ textDecoration: "none" }}>
+                    <h3 style={{ fontWeight: 700, fontSize: "0.95rem", lineHeight: "1.4", color: "var(--text)" }}>
+                      {product.name}
+                    </h3>
+                  </Link>
 
-                  {/* You might also like */}
-                  {similarProducts[product.id] && similarProducts[product.id].length > 0 && (
-                    <div style={{ marginTop: "0.25rem" }}>
-                      <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-3)", marginBottom: "0.3rem" }}>
-                        You might also like:
-                      </p>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                        {similarProducts[product.id].slice(0, 3).map((sim) => (
-                          <button
-                            key={sim.id}
-                            onClick={() => setCategory(sim.category)}
-                            style={{
-                              padding: "2px 8px",
-                              background: "var(--surface-2)",
-                              border: "1px solid var(--border)",
-                              borderRadius: "99px",
-                              fontSize: "0.68rem",
-                              fontWeight: 500,
-                              color: "var(--text-2)",
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
-                              transition: "all 120ms",
-                            }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.background = "rgba(79,70,229,0.1)";
-                              (e.currentTarget as HTMLButtonElement).style.color = "var(--primary)";
-                              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--primary)";
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.background = "var(--surface-2)";
-                              (e.currentTarget as HTMLButtonElement).style.color = "var(--text-2)";
-                              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
-                            }}
-                          >
-                            {CATEGORY_ICONS[sim.category] || "📦"} {sim.name.substring(0, 20)}{sim.name.length > 20 ? "…" : ""} ${sim.price.toFixed(0)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Options */}
-                  {product.options.map((opt) => (
-                    <div key={opt.name}>
-                      <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: "0.35rem" }}>
-                        {opt.name}
-                        {sel[opt.name] && <span style={{ color: "var(--primary)", marginLeft: "0.4rem" }}>· {sel[opt.name]}</span>}
-                      </p>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-                        {opt.values.map((val) => {
-                          const hex = isColorOption(opt.name) ? toColor(val) : null;
-                          const selected = sel[opt.name] === val;
-                          if (hex) {
-                            return (
-                              <button key={val} title={val} onClick={() => setOption(product.id, opt.name, val)} style={{
-                                width: "24px", height: "24px", borderRadius: "50%",
-                                background: hex, cursor: "pointer",
-                                border: selected ? "3px solid var(--primary)" : "2px solid var(--border)",
-                                outline: selected ? "2px solid white" : "none",
-                                outlineOffset: "-4px",
-                                boxShadow: selected ? "0 0 0 3px var(--primary)" : "var(--shadow-sm)",
-                                transform: selected ? "scale(1.2)" : "scale(1)",
-                                transition: "all 150ms",
-                              }} />
-                            );
-                          }
+                  {/* Rating */}
+                  {product.rating > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                      <div style={{ display: "flex", gap: "1px" }}>
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const fill = Math.min(1, Math.max(0, product.rating - (star - 1)));
                           return (
-                            <button key={val} onClick={() => setOption(product.id, opt.name, val)} style={{
-                              padding: "3px 10px", borderRadius: "6px", fontSize: "0.72rem", fontWeight: 500,
-                              cursor: "pointer",
-                              background: selected ? "var(--primary)" : "var(--surface-2)",
-                              color: selected ? "white" : "var(--text-2)",
-                              border: `1.5px solid ${selected ? "var(--primary)" : "var(--border)"}`,
-                              transition: "all 150ms",
-                            }}>{val}</button>
+                            <span key={star} style={{ position: "relative", fontSize: "0.8rem", lineHeight: 1 }}>
+                              <span style={{ color: "#d1d5db" }}>★</span>
+                              <span style={{
+                                position: "absolute", left: 0, top: 0,
+                                width: `${fill * 100}%`, overflow: "hidden",
+                                color: "#f59e0b",
+                              }}>★</span>
+                            </span>
                           );
                         })}
                       </div>
+                      <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#92400e" }}>
+                        {product.rating.toFixed(1)}
+                      </span>
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-3)" }}>
+                        ({product.review_count.toLocaleString()})
+                      </span>
                     </div>
-                  ))}
+                  )}
 
-                  {/* Price + CTA */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: "0.5rem" }}>
-                    <div>
+                  {/* Manufacturer */}
+                  {product.manufacturer && (
+                    <p style={{ fontSize: "0.7rem", color: "var(--text-3)", fontWeight: 500 }}>
+                      By <span style={{ color: "var(--text-2)", fontWeight: 600 }}>{product.manufacturer}</span>
+                    </p>
+                  )}
+
+                  <p style={{ color: "var(--text-2)", fontSize: "0.8rem", lineHeight: "1.5", flex: 1 }}>
+                    {product.description.substring(0, 80)}…
+                  </p>
+
+                  {/* Price + actions */}
+                  <div style={{ marginTop: "auto", paddingTop: "0.5rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.6rem" }}>
                       <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary)" }}>
                         ${product.price.toFixed(2)}
                       </span>
-                      <span style={{ fontSize: "0.72rem", color: "var(--text-3)", marginLeft: "0.4rem" }}>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
                         {product.stock > 20 ? "In stock" : product.stock > 0 ? `Only ${product.stock} left` : "Out of stock"}
                       </span>
                     </div>
-                    <button
-                      onClick={() => handleAddToCart(product)}
-                      disabled={isAdding || product.stock === 0}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        background: product.stock === 0 ? "var(--surface-2)" :
-                                    !ready ? "var(--surface-2)" : "var(--primary)",
-                        color: product.stock === 0 || !ready ? "var(--text-3)" : "white",
-                        borderRadius: "8px", fontWeight: 600, fontSize: "0.8rem",
-                        border: `1.5px solid ${!ready || product.stock === 0 ? "var(--border)" : "var(--primary)"}`,
-                        cursor: product.stock === 0 ? "not-allowed" : "pointer",
+
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      {/* View Details */}
+                      <Link href={`/products/${product.id}`} style={{
+                        flex: 1, display: "block", textAlign: "center",
+                        padding: "0.5rem 0.75rem",
+                        background: "var(--surface-2)",
+                        color: "var(--text-2)",
+                        borderRadius: "8px", fontWeight: 600, fontSize: "0.78rem",
+                        border: "1.5px solid var(--border)",
                         transition: "all 150ms",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {isAdding ? "Adding…" : product.stock === 0 ? "Out of Stock" : !ready ? "Select options" : "Add to Cart"}
-                    </button>
+                      }}>
+                        View Details
+                      </Link>
+
+                      {/* Quick Add — only for products with no options */}
+                      {product.options.length === 0 && (
+                        <button
+                          onClick={() => {
+                            setAdding(`${product.id}`);
+                            addToCart(product.id, 1, {})
+                              .then(() => {
+                                setToast({ msg: `Added "${product.name}" to cart!`, ok: true });
+                                setTimeout(() => setToast(null), 3000);
+                              })
+                              .catch(() => {
+                                setToast({ msg: "Failed to add to cart", ok: false });
+                                setTimeout(() => setToast(null), 3000);
+                              })
+                              .finally(() => setAdding(null));
+                          }}
+                          disabled={isAdding || product.stock === 0}
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            background: product.stock === 0 ? "var(--surface-2)" : "var(--primary)",
+                            color: product.stock === 0 ? "var(--text-3)" : "white",
+                            borderRadius: "8px", fontWeight: 600, fontSize: "0.78rem",
+                            border: `1.5px solid ${product.stock === 0 ? "var(--border)" : "var(--primary)"}`,
+                            cursor: product.stock === 0 ? "not-allowed" : "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "all 150ms",
+                          }}
+                        >
+                          {isAdding ? "…" : "🛒"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

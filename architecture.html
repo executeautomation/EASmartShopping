@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EASmartShopping – Architecture Diagram</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 24px 64px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #38bdf8, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 48px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* ── Layout columns ── */
+    .diagram {
+      display: grid;
+      grid-template-columns: 1fr 60px 1fr 60px 1fr;
+      grid-template-rows: auto;
+      gap: 0;
+      max-width: 1300px;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    /* ── Column headers ── */
+    .col-header {
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .col-header.frontend { background: #1e3a5f; color: #38bdf8; border: 1px solid #1d4ed8; }
+    .col-header.backend  { background: #1c3324; color: #34d399; border: 1px solid #166534; }
+    .col-header.stores   { background: #2d1b4e; color: #a78bfa; border: 1px solid #6d28d9; }
+
+    /* ── Columns ── */
+    .col { display: flex; flex-direction: column; gap: 16px; }
+    .col-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding-top: 52px;
+    }
+
+    /* ── Layer boxes ── */
+    .layer {
+      border-radius: 14px;
+      border: 1px solid;
+      overflow: hidden;
+    }
+    .layer-header {
+      padding: 10px 16px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .layer-body {
+      padding: 12px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Frontend layers */
+    .layer.fe-browser { background: #0c1e35; border-color: #1d4ed8; }
+    .layer.fe-browser .layer-header { background: #1e3a5f; color: #7dd3fc; }
+    .layer.fe-next    { background: #0c1e35; border-color: #1d4ed8; }
+    .layer.fe-next    .layer-header { background: #1e3a5f; color: #7dd3fc; }
+    .layer.fe-comms   { background: #0c1e35; border-color: #2563eb; }
+    .layer.fe-comms   .layer-header { background: #1e3358; color: #93c5fd; }
+
+    /* Backend layers */
+    .layer.be-api    { background: #0d2119; border-color: #16a34a; }
+    .layer.be-api    .layer-header { background: #14532d; color: #86efac; }
+    .layer.be-rag    { background: #0d2119; border-color: #15803d; }
+    .layer.be-rag    .layer-header { background: #14532d; color: #86efac; }
+    .layer.be-crud   { background: #0d2119; border-color: #166534; }
+    .layer.be-crud   .layer-header { background: #14532d; color: #86efac; }
+    .layer.be-mcp    { background: #1a1a0d; border-color: #854d0e; }
+    .layer.be-mcp    .layer-header { background: #422006; color: #fcd34d; }
+
+    /* Data store layers */
+    .layer.ds-sqlite  { background: #1e1030; border-color: #7c3aed; }
+    .layer.ds-sqlite  .layer-header { background: #2e1065; color: #c4b5fd; }
+    .layer.ds-chroma  { background: #1e1030; border-color: #6d28d9; }
+    .layer.ds-chroma  .layer-header { background: #2e1065; color: #c4b5fd; }
+    .layer.ds-ollama  { background: #1a1a1a; border-color: #4b5563; }
+    .layer.ds-ollama  .layer-header { background: #1f2937; color: #9ca3af; }
+    .layer.ds-mem     { background: #1e1030; border-color: #5b21b6; }
+    .layer.ds-mem     .layer-header { background: #2e1065; color: #c4b5fd; }
+
+    /* ── Chips ── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.75rem;
+      padding: 4px 9px;
+      border-radius: 8px;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+    .chip.page  { background: #172554; color: #bfdbfe; border: 1px solid #1e40af; }
+    .chip.comp  { background: #0f3a20; color: #bbf7d0; border: 1px solid #166534; }
+    .chip.route { background: #1c1533; color: #ddd6fe; border: 1px solid #5b21b6; }
+    .chip.ep    { background: #1a2e05; color: #d9f99d; border: 1px solid #3f6212; }
+    .chip.fn    { background: #0c2537; color: #bae6fd; border: 1px solid #0369a1; }
+    .chip.db    { background: #1a0030; color: #e9d5ff; border: 1px solid #7e22ce; }
+    .chip.ai    { background: #111827; color: #d1d5db; border: 1px solid #374151; }
+    .chip.warn  { background: #261500; color: #fed7aa; border: 1px solid #c2410c; }
+
+    .chip-icon { font-size: 0.9em; }
+    .chips     { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* ── Arrow connector ── */
+    .arrow-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .arrow-line {
+      width: 2px;
+      background: #334155;
+      flex: 1;
+      min-height: 20px;
+    }
+    .arrow-label {
+      font-size: 0.58rem;
+      color: #475569;
+      writing-mode: vertical-rl;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      padding: 4px 0;
+    }
+    .arrow-tip {
+      font-size: 1rem;
+      color: #475569;
+      line-height: 1;
+    }
+
+    /* ── Horizontal flow (full-width) ── */
+    .flow-row {
+      max-width: 1300px;
+      margin: 36px auto 0;
+      padding: 0 4px;
+    }
+    .flow-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+    .flow-strip {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      background: #131825;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .flow-step {
+      flex: 1;
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 6px;
+      position: relative;
+    }
+    .flow-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #475569;
+      font-size: 1rem;
+      z-index: 2;
+    }
+    .flow-step:not(:last-child) { border-right: 1px solid #1e293b; }
+    .flow-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 0.65rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .flow-step-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      line-height: 1.3;
+    }
+    .flow-step-sub {
+      font-size: 0.62rem;
+      color: #64748b;
+      line-height: 1.3;
+    }
+    .flow-step.fe  { background: #0b1929; }
+    .flow-step.be  { background: #0a1a12; }
+    .flow-step.rag { background: #0d0d22; }
+    .flow-step.db  { background: #140b22; }
+
+    /* ── Legend ── */
+    .legend {
+      max-width: 1300px;
+      margin: 36px auto 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 20px 24px;
+      background: #131825;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+    }
+    .legend-title {
+      width: 100%;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.72rem; color: #94a3b8;
+    }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      max-width: 1300px;
+      margin: 40px auto 16px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #475569;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .diagram {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      .col-arrow { display: none; }
+      .flow-strip { flex-direction: column; }
+      .flow-step::after { content: '↓' !important; right: 50% !important; bottom: -12px !important; top: unset !important; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>EASmartShopping</h1>
+<p class="subtitle">Full-Stack Architecture &nbsp;·&nbsp; Next.js + FastAPI + Ollama RAG</p>
+
+<!-- ════════════════════════════════════════════════════
+     MAIN ARCHITECTURE COLUMNS
+════════════════════════════════════════════════════ -->
+<div class="diagram">
+
+  <!-- ── COL 1 : FRONTEND ── -->
+  <div class="col">
+    <div class="col-header frontend">Frontend</div>
+
+    <!-- Browser / User -->
+    <div class="layer fe-browser">
+      <div class="layer-header">🌐 Browser (User)</div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b">Session ID stored in <code style="color:#7dd3fc">localStorage</code></span>
+        <div class="chips">
+          <span class="chip page">🛍 Products &nbsp;<code>/</code></span>
+          <span class="chip page">🛒 Cart &nbsp;<code>/cart</code></span>
+          <span class="chip page">📦 Checkout &nbsp;<code>/checkout</code></span>
+          <span class="chip page">📋 Orders &nbsp;<code>/orders</code></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Next.js App -->
+    <div class="layer fe-next">
+      <div class="layer-header">⚡ Next.js 15 App (TypeScript)</div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">Components</span>
+        <div class="chips">
+          <span class="chip comp">💬 ChatWidget</span>
+          <span class="chip comp">🔗 Navbar (live cart count)</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">ChatWidget features</span>
+        <div class="chips">
+          <span class="chip route">🎛 Option Picker Card</span>
+          <span class="chip route">📦 Bundle Card</span>
+          <span class="chip route">📊 Comparison Table</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frontend Comms -->
+    <div class="layer fe-comms">
+      <div class="layer-header">📡 API Client &amp; Streaming</div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">lib/api.ts — REST calls</span>
+        <div class="chips">
+          <span class="chip fn">fetchProducts()</span>
+          <span class="chip fn">fetchCart()</span>
+          <span class="chip fn">addToCart()</span>
+          <span class="chip fn">addBundleToCart()</span>
+          <span class="chip fn">createOrder()</span>
+          <span class="chip fn">fetchOrders()</span>
+          <span class="chip fn">sendChatMessage()</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:6px;margin-bottom:2px">SSE Proxy route</span>
+        <div class="chips">
+          <span class="chip route">POST /api/chat/stream → FastAPI SSE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ARROW 1 ── -->
+  <div class="col-arrow">
+    <div class="arrow-block" style="height:100%">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">REST · SSE</div>
+      <div class="arrow-tip">⇄</div>
+      <div class="arrow-label">HTTP :8000</div>
+      <div class="arrow-line"></div>
+    </div>
+  </div>
+
+  <!-- ── COL 2 : BACKEND ── -->
+  <div class="col">
+    <div class="col-header backend">Backend</div>
+
+    <!-- FastAPI Routes -->
+    <div class="layer be-api">
+      <div class="layer-header">🚀 FastAPI Router &nbsp;<code style="font-size:0.75em">main.py</code></div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b">Products</span>
+        <div class="chips">
+          <span class="chip ep">GET /api/products</span>
+          <span class="chip ep">GET /api/products/search/semantic</span>
+          <span class="chip ep">GET /api/products/{id}/similar</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px">Cart</span>
+        <div class="chips">
+          <span class="chip ep">GET /api/cart/{session_id}</span>
+          <span class="chip ep">POST /api/cart/{session_id}/add</span>
+          <span class="chip ep">PUT  /api/cart/{session_id}/update</span>
+          <span class="chip ep">DELETE /api/cart/{session_id}/remove</span>
+          <span class="chip ep">POST /api/cart/{session_id}/bundle</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px">Orders</span>
+        <div class="chips">
+          <span class="chip ep">POST /api/orders</span>
+          <span class="chip ep">GET  /api/orders/{id}</span>
+          <span class="chip ep">GET  /api/orders</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px">Chat</span>
+        <div class="chips">
+          <span class="chip ep">POST /api/chat</span>
+          <span class="chip ep">POST /api/chat/stream (SSE)</span>
+          <span class="chip ep">DELETE /api/chat/{session_id}/pending</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRUD -->
+    <div class="layer be-crud">
+      <div class="layer-header">🗃 CRUD Layer &nbsp;<code style="font-size:0.75em">crud.py</code></div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip fn">get_all_products()</span>
+          <span class="chip fn">get_product(id)</span>
+          <span class="chip fn">get_cart(session_id)</span>
+          <span class="chip fn">add_to_cart()</span>
+          <span class="chip fn">update_cart_item()</span>
+          <span class="chip fn">remove_from_cart()</span>
+          <span class="chip fn">create_order()</span>
+          <span class="chip fn">get_orders(session_id)</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">Atomic order creation: snapshot items → update stock → clear cart</span>
+      </div>
+    </div>
+
+    <!-- RAG -->
+    <div class="layer be-rag">
+      <div class="layer-header">🤖 RAG Pipeline &nbsp;<code style="font-size:0.75em">rag.py</code></div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">Intent Detection</span>
+        <div class="chips">
+          <span class="chip comp">Add to Cart</span>
+          <span class="chip comp">Remove</span>
+          <span class="chip comp">Update Qty</span>
+          <span class="chip comp">Bundle Request</span>
+          <span class="chip comp">Compare Products</span>
+          <span class="chip comp">Reorder</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">Query Processing</span>
+        <div class="chips">
+          <span class="chip route">Contextual pronoun resolution</span>
+          <span class="chip route">Query normalization (strip wh-words)</span>
+          <span class="chip route">Multi-item split ("X and Y")</span>
+          <span class="chip route">Option parsing (size, color, etc.)</span>
+          <span class="chip route">Re-rank by name match</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">Session State (in-memory)</span>
+        <div class="chips">
+          <span class="chip warn">_conversation_history (8 turns)</span>
+          <span class="chip warn">_pending_add</span>
+          <span class="chip warn">_pending_bundle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MCP -->
+    <div class="layer be-mcp">
+      <div class="layer-header">🔌 MCP Server &nbsp;<code style="font-size:0.75em">mcp_server.py</code></div>
+      <div class="layer-body">
+        <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">JSON-RPC over stdin/stdout — External LLM clients</span>
+        <div class="chips">
+          <span class="chip warn">search_products()</span>
+          <span class="chip warn">get_product()</span>
+          <span class="chip warn">add_to_cart()</span>
+          <span class="chip warn">get_cart()</span>
+          <span class="chip warn">create_order()</span>
+          <span class="chip warn">get_order()</span>
+          <span class="chip warn">list_orders()</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ARROW 2 ── -->
+  <div class="col-arrow">
+    <div class="arrow-block" style="height:100%">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">SQL · Vectors</div>
+      <div class="arrow-tip">⇄</div>
+      <div class="arrow-label">Embeddings</div>
+      <div class="arrow-line"></div>
+    </div>
+  </div>
+
+  <!-- ── COL 3 : DATA STORES & AI ── -->
+  <div class="col">
+    <div class="col-header stores">Data &amp; AI</div>
+
+    <!-- SQLite -->
+    <div class="layer ds-sqlite">
+      <div class="layer-header">🗄 SQLite &nbsp;<code style="font-size:0.75em">(WAL mode)</code></div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip db">products</span>
+          <span class="chip db">cart_items</span>
+          <span class="chip db">orders</span>
+          <span class="chip db">order_items</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">
+          FK constraints · ON CONFLICT cart merge trigger ·
+          Unique (session_id, product_id, options)
+        </span>
+      </div>
+    </div>
+
+    <!-- ChromaDB -->
+    <div class="layer ds-chroma">
+      <div class="layer-header">🔮 ChromaDB &nbsp;<code style="font-size:0.75em">chroma_db/</code></div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip db">Product document vectors</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">
+          Persistent vector store · Semantic similarity search ·
+          Returns top-k products by cosine distance
+        </span>
+      </div>
+    </div>
+
+    <!-- Ollama -->
+    <div class="layer ds-ollama">
+      <div class="layer-header">🦙 Ollama &nbsp;<code style="font-size:0.75em">localhost:11434</code></div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip ai">💬 gemma4:e2b (Chat LLM)</span>
+          <span class="chip ai">🧠 nomic-embed-text-v2-moe (Embeddings)</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">
+          Local inference — no external API calls ·
+          Streaming token generation via astream()
+        </span>
+      </div>
+    </div>
+
+    <!-- In-memory state -->
+    <div class="layer ds-mem">
+      <div class="layer-header">⚡ In-Memory Session State</div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip db">conversation_history dict</span>
+          <span class="chip db">pending_add dict</span>
+          <span class="chip db">pending_bundle dict</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">
+          Keyed by session_id · Up to 8 conversation turns ·
+          Lost on server restart (stateless beyond session scope)
+        </span>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div class="layer ds-chroma" style="border-color:#374151">
+      <div class="layer-header" style="background:#1f2937;color:#9ca3af">⚙️ Config &nbsp;<code style="font-size:0.75em">config.yaml + env</code></div>
+      <div class="layer-body">
+        <div class="chips">
+          <span class="chip ai">OLLAMA_BASE_URL</span>
+          <span class="chip ai">OLLAMA_CHAT_MODEL</span>
+          <span class="chip ai">OLLAMA_EMBED_MODEL</span>
+          <span class="chip ai">LLM_TEMPERATURE</span>
+          <span class="chip ai">LLM_MAX_TOKENS</span>
+          <span class="chip ai">CHAT_MAX_HISTORY_TURNS</span>
+        </div>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">Env var &gt; config.yaml &gt; built-in default</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     DATA FLOW — Chat Request
+════════════════════════════════════════════════════ -->
+<div class="section-label">Chat Request Data Flow — "Add black UK8 running shoes to my cart"</div>
+<div class="flow-row">
+  <div class="flow-strip">
+    <div class="flow-step fe">
+      <div class="flow-num">1</div>
+      <div class="flow-step-label">User types message</div>
+      <div class="flow-step-sub">ChatWidget.tsx<br/>POST /api/chat/stream</div>
+    </div>
+    <div class="flow-step fe">
+      <div class="flow-num">2</div>
+      <div class="flow-step-label">Next.js Proxy</div>
+      <div class="flow-step-sub">api/chat/stream/route.ts<br/>Forwards to FastAPI</div>
+    </div>
+    <div class="flow-step be">
+      <div class="flow-num">3</div>
+      <div class="flow-step-label">Intent Detection</div>
+      <div class="flow-step-sub">_detect_add_to_cart()<br/>qty=1, Color=Black, Size=UK8</div>
+    </div>
+    <div class="flow-step rag">
+      <div class="flow-num">4</div>
+      <div class="flow-step-label">Query Augmentation</div>
+      <div class="flow-step-sub">Normalize + pronoun resolve<br/>"running shoes"</div>
+    </div>
+    <div class="flow-step rag">
+      <div class="flow-num">5</div>
+      <div class="flow-step-label">Vector Search</div>
+      <div class="flow-step-sub">ChromaDB + nomic-embed<br/>Top 5 products retrieved</div>
+    </div>
+    <div class="flow-step db">
+      <div class="flow-num">6</div>
+      <div class="flow-step-label">Fetch Fresh Cart</div>
+      <div class="flow-step-sub">SQLite CRUD<br/>Include in LLM context</div>
+    </div>
+    <div class="flow-step rag">
+      <div class="flow-num">7</div>
+      <div class="flow-step-label">LLM Generation</div>
+      <div class="flow-step-sub">gemma4:e2b via Ollama<br/>Streams tokens as SSE</div>
+    </div>
+    <div class="flow-step be">
+      <div class="flow-num">8</div>
+      <div class="flow-step-label">Cart Action</div>
+      <div class="flow-step-sub">crud.add_to_cart()<br/>SQLite updated</div>
+    </div>
+    <div class="flow-step fe">
+      <div class="flow-num">9</div>
+      <div class="flow-step-label">Streamed Response</div>
+      <div class="flow-step-sub">ChatWidget renders tokens<br/>cart_updated=true flag</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     ORDER FLOW
+════════════════════════════════════════════════════ -->
+<div class="section-label">Order Placement Flow</div>
+<div class="flow-row">
+  <div class="flow-strip">
+    <div class="flow-step fe">
+      <div class="flow-num">1</div>
+      <div class="flow-step-label">Browse Products</div>
+      <div class="flow-step-sub">GET /api/products<br/>keyword or semantic</div>
+    </div>
+    <div class="flow-step fe">
+      <div class="flow-num">2</div>
+      <div class="flow-step-label">Add to Cart</div>
+      <div class="flow-step-sub">POST /api/cart/{session}/add<br/>with selected options</div>
+    </div>
+    <div class="flow-step db">
+      <div class="flow-num">3</div>
+      <div class="flow-step-label">Cart Persisted</div>
+      <div class="flow-step-sub">SQLite cart_items<br/>merge on conflict</div>
+    </div>
+    <div class="flow-step fe">
+      <div class="flow-num">4</div>
+      <div class="flow-step-label">Checkout Form</div>
+      <div class="flow-step-sub">/checkout page<br/>name, email, address</div>
+    </div>
+    <div class="flow-step be">
+      <div class="flow-num">5</div>
+      <div class="flow-step-label">POST /api/orders</div>
+      <div class="flow-step-sub">create_order() atomic:<br/>snapshot → stock → clear cart</div>
+    </div>
+    <div class="flow-step db">
+      <div class="flow-num">6</div>
+      <div class="flow-step-label">Order Stored</div>
+      <div class="flow-step-sub">orders + order_items<br/>stock decremented</div>
+    </div>
+    <div class="flow-step fe">
+      <div class="flow-num">7</div>
+      <div class="flow-step-label">Orders History</div>
+      <div class="flow-step-sub">/orders page<br/>GET /api/orders?session_id</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     LEGEND
+════════════════════════════════════════════════════ -->
+<div class="legend">
+  <div class="legend-title">Legend</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1e40af"></div>Next.js Frontend Pages</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#15803d"></div>FastAPI Backend Endpoints</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3f6212"></div>CRUD / Business Logic Functions</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#5b21b6"></div>Vector / Relational Data Stores</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#374151"></div>Local AI Inference (Ollama)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#b45309"></div>MCP Server (External LLM Integration)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>In-memory session state (not persisted)</div>
+</div>
+
+</body>
+</html>

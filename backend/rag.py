@@ -136,24 +136,47 @@ def build_vector_store():
     documents = []
     for p in products:
         opts = json.loads(p.get("options") or "[]")
+        specs = json.loads(p.get("specs") or "{}")
         options_text = ""
         if opts:
             options_lines = []
             for opt in opts:
                 options_lines.append(f"  {opt['name']}: {', '.join(opt['values'])}")
             options_text = "\nAvailable options:\n" + "\n".join(options_lines)
+
+        # Build specs text for RAG grounding
+        specs_text = ""
+        if specs:
+            specs_lines = [f"  {k.replace('_', ' ').title()}: {v}" for k, v in specs.items()]
+            specs_text = "\nSpecifications:\n" + "\n".join(specs_lines)
+
+        rating = p.get("rating", 0.0)
+        review_count = p.get("review_count", 0)
+        manufacturer = p.get("manufacturer", "")
+
         text = (
             f"Product: {p['name']}\n"
             f"Category: {p['category']}\n"
             f"Price: ${p['price']:.2f}\n"
+            f"Manufacturer: {manufacturer}\n"
+            f"Customer Rating: {rating:.1f}/5.0 ({review_count} reviews)\n"
             f"Description: {p['description']}\n"
             f"Stock: {p['stock']} units available"
-            f"{options_text}\n"
+            f"{options_text}"
+            f"{specs_text}\n"
             f"Product ID: {p['id']}"
         )
         doc = Document(
             page_content=text,
-            metadata={"product_id": p["id"], "name": p["name"], "category": p["category"], "price": p["price"]},
+            metadata={
+                "product_id": p["id"],
+                "name": p["name"],
+                "category": p["category"],
+                "price": p["price"],
+                "rating": rating,
+                "review_count": review_count,
+                "manufacturer": manufacturer,
+            },
         )
         documents.append(doc)
 
@@ -190,7 +213,11 @@ def search_products_rag(query: str, k: int = 5) -> list[dict]:
                 "name": doc.metadata.get("name", ""),
                 "category": doc.metadata.get("category", ""),
                 "price": doc.metadata.get("price", 0),
+                "rating": doc.metadata.get("rating", 0.0),
+                "review_count": doc.metadata.get("review_count", 0),
+                "manufacturer": doc.metadata.get("manufacturer", ""),
                 "content": doc.page_content,
+                "metadata": doc.metadata,
             })
 
     return products
@@ -392,8 +419,35 @@ def _rerank_by_name_match(sub_query: str, candidates: list) -> list:
     return sorted(candidates, key=_score, reverse=True)
 
 
+def _extract_mentioned_products(session_id: str) -> list[str]:
+    """Extract product names from the last AI response (bold **Name** markdown).
+    Used when user says 'add them all' to know which products 'them' refers to.
+    """
+    history = _conversation_history.get(session_id, [])
+    if not history:
+        return []
+    last_ai = history[-1].get("ai", "")
+    names = re.findall(r'\*\*([^*\n]+)\*\*', last_ai)
+    # Keep plausible product names: not too short, not option labels like "Color: Gray"
+    return [
+        n.strip() for n in names
+        if 3 < len(n.strip()) < 80
+        and ":" not in n
+        and not n.strip()[0].isdigit()
+    ]
+
+
 def _detect_add_to_cart(query_lower: str) -> bool:
     """Detect explicit add-to-cart intent from user message."""
+    # Strong add signals that override the browse-phrase short-circuit below.
+    # e.g. "show me all the tops you have I want to add to cart"
+    strong_add_overrides = [
+        "add to cart", "add them", "add all", "add these", "add those",
+        "want to add", "add everything", "add it",
+    ]
+    if any(p in query_lower for p in strong_add_overrides):
+        return True
+
     browse_phrases = [
         "show me", "what do you have", "what are", "list", "browse",
         "find me all", "all your", "do you have", "do you sell",
@@ -437,25 +491,43 @@ def _cart_item_matches_query(item: dict, query_lower: str) -> bool:
     return False
 
 
-def _detect_update_quantity(query_lower: str) -> tuple[bool, int | None]:
-    """Return (is_quantity_update, new_quantity).
-    Matches phrases like: 'reduce to 1', 'change quantity to 3', 'update to 2',
-    'make it 2', 'set quantity to 1', 'only want 1', 'just 1', 'decrease to 2'.
-    Returns (False, None) if not a quantity update.
+def _detect_update_quantity(query_lower: str) -> tuple[bool, int | None, bool]:
+    """Return (is_quantity_update, quantity_value, is_delta).
+
+    is_delta=False → set the quantity to an exact value  (e.g. 'change qty to 3')
+    is_delta=True  → add that amount to the existing qty (e.g. 'add 2 more')
+
+    Absolute-set phrases: reduce/decrease/increase/change/set/update … to N
+    Delta phrases: add N more, add another, increase by N, one more of …
     """
-    update_phrases = [
+    absolute_phrases = [
         "reduce to", "reduce it to", "change to", "change quantity to",
         "update to", "update quantity to", "set to", "set quantity to",
         "make it", "make that", "only want", "just want", "decrease to",
         "lower to", "bring it down to", "quantity to", "qty to",
+        "increase to", "increase quantity to", "bump up to", "change it to",
+        "want only", "just",
     ]
-    matched = any(p in query_lower for p in update_phrases)
-    if not matched:
-        return False, None
+    delta_phrases = [
+        "add one more", "add 1 more", "add two more", "add 2 more",
+        "add three more", "add 3 more", "add four more", "add 4 more",
+        "add five more", "add 5 more", "add another", "one more of",
+        "two more of", "three more of", "increase by", "add more of",
+        "add more", "more of the",
+    ]
+    is_absolute = any(p in query_lower for p in absolute_phrases)
+    is_delta = any(p in query_lower for p in delta_phrases)
+
+    if not is_absolute and not is_delta:
+        return False, None, False
+
     qty_match = re.search(r'\b(\d+)\b', query_lower)
-    if qty_match:
-        return True, int(qty_match.group(1))
-    return False, None
+    qty = int(qty_match.group(1)) if qty_match else 1
+
+    # Delta takes priority when both accidentally match
+    if is_delta:
+        return True, qty, True
+    return True, qty, False
 
 
 def _detect_remove_from_cart(query_lower: str) -> bool:
@@ -468,6 +540,40 @@ def _detect_clear_cart(query_lower: str) -> bool:
     clear_phrases = ["clear my cart", "empty my cart", "clear cart", "empty cart",
                      "remove everything", "remove all", "start over", "wipe my cart"]
     return any(p in query_lower for p in clear_phrases)
+
+
+def _detect_top_rated_query(query_lower: str) -> tuple[bool, str | None]:
+    """Detect queries asking for highest/best rated products.
+    Returns (is_top_rated, optional_category_hint).
+    Examples:
+      'highest rated shoes' → (True, 'shoes')
+      'best reviewed running shoes' → (True, 'running shoes')
+      'top rated electronics' → (True, 'electronics')
+      'what is the most popular bag' → (True, 'bag')
+    """
+    rating_phrases = [
+        "highest rated", "best rated", "top rated", "best reviewed",
+        "most reviewed", "most popular", "best selling", "top selling",
+        "highest review", "best rating", "highest rating",
+        "most loved", "customer favourite", "customer favorite",
+        "what's the best", "what is the best", "which is the best",
+        "recommend the best",
+    ]
+    if not any(p in query_lower for p in rating_phrases):
+        return False, None
+
+    # Strip rating phrase words to extract the category/product hint
+    stop = {
+        "highest", "best", "top", "most", "rated", "rating", "reviewed",
+        "reviews", "review", "popular", "selling", "loved", "favourite",
+        "favorite", "customer", "what", "is", "the", "which", "a", "an",
+        "recommend", "show", "me", "give", "find", "do", "you", "have",
+        "what's", "whats",
+    }
+    words = re.sub(r"[?!.,']", "", query_lower).split()
+    hint_words = [w for w in words if w not in stop and len(w) > 2]
+    hint = " ".join(hint_words).strip() if hint_words else None
+    return True, hint
 
 
 def _detect_bundle_request(query_lower: str) -> bool:
@@ -613,7 +719,7 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
     cart_updated = False
     cart_action_note = ""
 
-    _is_qty_update, _new_qty = _detect_update_quantity(query_lower)
+    _is_qty_update, _new_qty, _is_qty_delta = _detect_update_quantity(query_lower)
 
     # ── Cart mutation actions ─────────────────────────────────────────────────
     # 1. Bundle item removal — catches "remove X" / "don't want X" when a bundle is pending
@@ -702,13 +808,16 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         for item in cart_data.get("items", []):
             if _cart_item_matches_query(item, query_lower):
                 try:
-                    if _new_qty is not None and _new_qty <= 0:
+                    final_qty = (_new_qty or 1)
+                    if _is_qty_delta:
+                        final_qty = item["quantity"] + final_qty
+                    if final_qty <= 0:
                         cart_remove(session_id, item["product_id"])
                         cart_action_note = f"CART ACTION COMPLETED: Removed {item['product']['name']} from cart (quantity set to 0)."
                     else:
-                        cart_update_qty(session_id, item["product_id"], _new_qty)
+                        cart_update_qty(session_id, item["product_id"], final_qty)
                         cart_action_note = (
-                            f"CART ACTION COMPLETED: Updated {item['product']['name']} quantity to {_new_qty}."
+                            f"CART ACTION COMPLETED: Updated {item['product']['name']} quantity to {final_qty}."
                         )
                     cart_updated = True
                     updated = True
@@ -742,53 +851,89 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         action_notes = []
         any_added = False
 
+        # Detect "add all [X]" / "add them all" / "add all of them" etc.
+        # In this case we want to process ALL matching candidates, not just the best one.
+        _add_all_pattern = re.search(
+            r'\badd\b.{0,20}\ball\b|\badd\b.{0,20}\bevery\b|\badd\b.{0,20}\beach\b',
+            query_lower
+        )
+
         for sub in sub_items:
             rag_query = _rag_query_for_add(sub, session_id)
-            add_candidates = search_products_rag(rag_query, k=3)
-            add_candidates = _rerank_by_name_match(sub, add_candidates)
+            if _add_all_pattern:
+                # For "add them all" / "add all [X]": try to extract explicit product names
+                # from the previous AI response (more reliable than a vague pronoun RAG search).
+                mentioned = _extract_mentioned_products(session_id)
+                if mentioned:
+                    # Search for each mentioned product individually and collect best hits
+                    seen_ids: set[int] = set()
+                    add_candidates = []
+                    for pname in mentioned:
+                        hits = search_products_rag(pname, k=2)
+                        hits = _rerank_by_name_match(pname, hits)
+                        if hits and hits[0]["product_id"] not in seen_ids:
+                            add_candidates.append(hits[0])
+                            seen_ids.add(hits[0]["product_id"])
+                else:
+                    # Fallback: broad RAG search with high k
+                    add_candidates = search_products_rag(rag_query, k=10)
+                    add_candidates = _rerank_by_name_match(sub, add_candidates)
+                candidates_to_process = add_candidates
+            else:
+                add_candidates = search_products_rag(rag_query, k=3)
+                add_candidates = _rerank_by_name_match(sub, add_candidates)
+                candidates_to_process = [add_candidates[0]] if add_candidates else []
+
             if not add_candidates:
                 action_notes.append(f"CART ACTION FAILED: No matching product found for '{sub}'.")
                 continue
-            try:
-                quantity = _parse_quantity(sub)
-                best = add_candidates[0]
-                full_product = get_product(best["product_id"])
-                selected_options, missing = _parse_options_from_query(sub, full_product)
 
-                if missing:
-                    opts_summary = "; ".join(
-                        f"{o['name']}: {', '.join(o['values'])}"
-                        for o in (full_product.get("options") or [])
-                        if o["name"] in missing
-                    )
-                    # Store pending context so the next reply can complete the add
-                    _pending_add.setdefault(session_id, []).append({
-                        "product_id": best["product_id"],
-                        "name": best["name"],
-                        "price": best["price"],
-                        "image": full_product.get("image_url") or "",
-                        "options": full_product.get("options") or [],
-                        "quantity": quantity,
-                        "already_selected": selected_options,
-                    })
-                    action_notes.append(
-                        f"NEED OPTIONS: Cannot add {best['name']} yet. "
-                        f"Please ask the customer to choose: {opts_summary}"
-                    )
-                else:
-                    qty_text = f"{quantity}x " if quantity > 1 else ""
-                    opts_text = (
-                        f" ({', '.join(f'{k}: {v}' for k, v in selected_options.items())})"
-                        if selected_options else ""
-                    )
-                    cart_add(session_id, best["product_id"], quantity, selected_options)
-                    any_added = True
-                    action_notes.append(
-                        f"CART ACTION COMPLETED: Added {qty_text}{best['name']}{opts_text} "
-                        f"(${best['price']:.2f} each) to cart successfully."
-                    )
-            except ValueError as e:
-                action_notes.append(f"CART ACTION FAILED: {e}")
+            # Deduplicate against already-pending products so we don't double-queue
+            already_pending_ids = {p["product_id"] for p in _pending_add.get(session_id, [])}
+
+            for best in candidates_to_process:
+                if best["product_id"] in already_pending_ids:
+                    continue
+                try:
+                    quantity = _parse_quantity(sub)
+                    full_product = get_product(best["product_id"])
+                    selected_options, missing = _parse_options_from_query(sub, full_product)
+
+                    if missing:
+                        opts_summary = "; ".join(
+                            f"{o['name']}: {', '.join(o['values'])}"
+                            for o in (full_product.get("options") or [])
+                            if o["name"] in missing
+                        )
+                        # Store pending context so the next reply can complete the add
+                        _pending_add.setdefault(session_id, []).append({
+                            "product_id": best["product_id"],
+                            "name": best["name"],
+                            "price": best["price"],
+                            "image": full_product.get("image_url") or "",
+                            "options": full_product.get("options") or [],
+                            "quantity": quantity,
+                            "already_selected": selected_options,
+                        })
+                        already_pending_ids.add(best["product_id"])
+                        action_notes.append(
+                            f"NEED OPTIONS: Cannot add {best['name']} yet. "
+                            f"Please ask the customer to choose: {opts_summary}"
+                        )
+                    else:
+                        qty_text = f"{quantity}x " if quantity > 1 else ""
+                        opts_text = (
+                            f" ({', '.join(f'{k}: {v}' for k, v in selected_options.items())})"
+                            if selected_options else ""
+                        )
+                        cart_add(session_id, best["product_id"], quantity, selected_options)
+                        any_added = True
+                        action_notes.append(
+                            f"CART ACTION COMPLETED: Added {qty_text}{best['name']}{opts_text} "
+                            f"(${best['price']:.2f} each) to cart successfully."
+                        )
+                except ValueError as e:
+                    action_notes.append(f"CART ACTION FAILED: {e}")
 
         if any_added:
             cart_updated = True
@@ -961,6 +1106,49 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
             else:
                 cart_action_note = f"REORDER INFO: Customer's order history:\n{history_text}\nAsk which order they'd like to reorder, or offer to reorder the most recent one."
 
+    # ── Top-rated / best-reviewed product query ───────────────────────────────
+    _is_top_rated, _top_rated_hint = _detect_top_rated_query(query_lower)
+    if not cart_action_note and _is_top_rated:
+        from crud import get_top_rated_products
+
+        # Map common hint words to DB category names
+        _CATEGORY_MAP = {
+            "shoe": "Sports", "shoes": "Sports", "sneaker": "Sports", "sneakers": "Sports",
+            "boot": "Sports", "boots": "Sports", "running": "Sports", "trainer": "Sports",
+            "trainers": "Sports", "electronic": "Electronics", "electronics": "Electronics",
+            "headphone": "Electronics", "speaker": "Electronics", "keyboard": "Electronics",
+            "bag": "Bags", "bags": "Bags", "backpack": "Bags",
+            "clothing": "Clothing", "clothes": "Clothing", "hoodie": "Clothing",
+            "wellness": "Wellness", "kitchen": "Home & Kitchen",
+        }
+        category_filter = None
+        if _top_rated_hint:
+            for keyword, cat in _CATEGORY_MAP.items():
+                if keyword in _top_rated_hint:
+                    category_filter = cat
+                    break
+
+        top_products = get_top_rated_products(category=category_filter, limit=5, min_reviews=100)
+        if top_products:
+            lines = []
+            for rank, p in enumerate(top_products, 1):
+                specs = p.get("specs") or {}
+                durability = specs.get("durability", "")
+                dur_note = f" | Durability: {durability}" if durability else ""
+                lines.append(
+                    f"  #{rank} {p['name']} — {p['rating']:.1f}⭐ ({p['review_count']} reviews) "
+                    f"| ${p['price']:.2f} | By {p['manufacturer'] or 'Unknown'}{dur_note}"
+                )
+            scope = f" in {category_filter}" if category_filter else ""
+            cart_action_note = (
+                f"TOP RATED PRODUCTS{scope} (sorted by customer rating):\n"
+                + "\n".join(lines)
+                + "\nPresent these as a clear ranked list with ratings and brief highlights. "
+                  "Mention the manufacturer and any standout durability facts."
+            )
+        else:
+            cart_action_note = "TOP RATED: No products found with sufficient reviews for this category."
+
     elif _detect_bundle_request(query_lower):
         from crud import get_all_products, get_product
         all_products = get_all_products()
@@ -968,10 +1156,44 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         budget_match = re.search(r'\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:budget|dollars?|usd)?', query_lower)
         budget = float(budget_match.group(1).replace(',', '')) if budget_match else None
 
+        # Infer allowed categories from the bundle query so we don't mix e.g. shoes into
+        # a "gaming PC" bundle just because their embeddings score well on "performance".
+        # Map of keyword → whitelist of category names (case-insensitive substring match).
+        _BUNDLE_CATEGORY_HINTS: list[tuple[list[str], list[str]]] = [
+            (["gaming", "pc", "computer", "desk setup", "home office", "office setup",
+              "work from home", "wfh setup", "workstation"],
+             ["electronics", "tech", "computer", "accessories", "audio"]),
+            (["workout", "fitness", "gym", "sports kit", "running kit", "exercise"],
+             ["sports", "fitness", "clothing", "outdoor"]),
+            (["camping", "hiking", "outdoor", "adventure"],
+             ["outdoor", "sports", "camping", "hiking"]),
+            (["travel", "traveller", "traveler"],
+             ["travel", "bags", "accessories", "outdoor"]),
+            (["kitchen", "cooking", "baking", "chef"],
+             ["kitchen", "home", "food"]),
+            (["yoga", "pilates", "meditation"],
+             ["fitness", "sports", "clothing", "wellness"]),
+        ]
+        bundle_category_whitelist: list[str] | None = None
+        for keywords, cats in _BUNDLE_CATEGORY_HINTS:
+            if any(kw in query_lower for kw in keywords):
+                bundle_category_whitelist = cats
+                break
+
         # Use RAG to find the most relevant products for this bundle query
-        bundle_candidates = search_products_rag(query, k=12)
+        bundle_candidates = search_products_rag(query, k=15)
         bundle_candidates = [get_product(c["product_id"]) for c in bundle_candidates]
         bundle_candidates = [p for p in bundle_candidates if p]  # filter None
+
+        # Apply category whitelist when we have a strong category signal
+        if bundle_category_whitelist:
+            def _cat_allowed(p: dict) -> bool:
+                cat = (p.get("category") or "").lower()
+                return any(w in cat for w in bundle_category_whitelist)
+            filtered = [p for p in bundle_candidates if _cat_allowed(p)]
+            # Only apply filter if it doesn't wipe out all candidates
+            if filtered:
+                bundle_candidates = filtered
 
         # Apply budget filter (single item shouldn't exceed 60% of budget)
         if budget:
@@ -1037,18 +1259,80 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
     # so "What shoes do you have?" searches "shoes" not the full noisy sentence
     if rag_query == query:
         rag_query = _normalize_browse_query(query)
-    relevant_products = search_products_rag(rag_query, k=5)
+    relevant_products = search_products_rag(rag_query, k=10)
+
+    # ── SQL spec/material fallback ───────────────────────────────────────────
+    # For queries mentioning specific materials, fabric compositions, or
+    # technical specs (e.g. "80% nylon 20% spandex", "GORE-TEX", "UPF 50+"),
+    # also run a direct SQL LIKE search on the specs and description columns
+    # and merge unique results so nothing gets missed.
+    _SPEC_SIGNAL_WORDS = {
+        "%", "nylon", "spandex", "polyester", "cotton", "wool", "linen", "merino",
+        "gore-tex", "goretex", "ripstop", "cordura", "lycra", "elastane",
+        "upf", "mmhg", "compression", "waterproof", "breathable", "moisture",
+        "specification", "spec", "material", "fabric", "composition",
+    }
+    query_lower = query.lower()
+    if any(w in query_lower for w in _SPEC_SIGNAL_WORDS):
+        from crud import search_products_by_spec
+        # Extract meaningful tokens (strip stop words / punctuation)
+        raw_tokens = re.sub(r"[?!.,]", "", query_lower).split()
+        _SPEC_STOP = {"is", "there", "any", "item", "with", "a", "an", "the", "i",
+                      "do", "you", "have", "show", "me", "find", "looking", "for",
+                      "what", "which", "products", "product", "that", "are", "has"}
+        spec_keywords = [t for t in raw_tokens if t not in _SPEC_STOP and len(t) > 1]
+        if spec_keywords:
+            sql_hits = search_products_by_spec(spec_keywords)
+            # Merge: prepend SQL hits (highest confidence) then append RAG hits not already seen
+            seen_ids = {p["product_id"] for p in relevant_products}
+            for hit in sql_hits:
+                pid = hit["id"]
+                if pid not in seen_ids:
+                    seen_ids.add(pid)
+                    # Build spec text so the LLM can see the exact spec values
+                    specs_dict = hit.get("specs") or {}
+                    spec_lines = "\n".join(f"  {k}: {v}" for k, v in specs_dict.items()) if specs_dict else ""
+                    content = (
+                        f"Description: {hit['description']}\n"
+                        f"Specifications:\n{spec_lines}"
+                    ) if spec_lines else f"Description: {hit['description']}"
+                    # Wrap in the same dict shape as search_products_rag returns
+                    relevant_products.insert(0, {
+                        "product_id": pid,
+                        "name": hit["name"],
+                        "category": hit["category"],
+                        "price": hit["price"],
+                        "rating": hit.get("rating", 0.0),
+                        "review_count": hit.get("review_count", 0),
+                        "manufacturer": hit.get("manufacturer", ""),
+                        "content": content,
+                        "metadata": {
+                            "rating": hit.get("rating", 0.0),
+                            "review_count": hit.get("review_count", 0),
+                            "manufacturer": hit.get("manufacturer", ""),
+                        },
+                    })
 
     if relevant_products:
         context_parts = []
-        for p in relevant_products[:5]:
+        for p in relevant_products[:10]:
             desc = p["content"].split("Description: ")[-1].split("\n")[0]
+            # Also extract specs from content if present (SQL-hit products include them)
+            specs_snippet = ""
+            if "Specifications:\n" in p["content"]:
+                raw_specs = p["content"].split("Specifications:\n")[-1].strip()
+                # flatten multi-line specs into a compact string
+                specs_snippet = " | Specs: " + "; ".join(
+                    line.strip() for line in raw_specs.splitlines() if line.strip()
+                )
             opts_section = ""
             if "Available options:" in p["content"]:
-                opts_raw = p["content"].split("Available options:\n")[-1].split("Product ID:")[0].strip()
+                opts_raw = p["content"].split("Available options:\n")[-1].split("Specifications:")[0].split("Product ID:")[0].strip()
                 opts_section = f" | Options: {opts_raw.replace(chr(10), '; ')}"
+            rating_str = f" | ⭐ {p['metadata'].get('rating', 0):.1f} ({p['metadata'].get('review_count', 0)} reviews)" if p.get("metadata") else ""
+            mfr_str = f" | By {p['metadata'].get('manufacturer', '')}" if p.get("metadata", {}).get("manufacturer") else ""
             context_parts.append(
-                f"- {p['name']} | {p['category']} | ${p['price']:.2f}{opts_section} | {desc}"
+                f"- {p['name']} | {p['category']} | ${p['price']:.2f}{rating_str}{mfr_str}{opts_section} | {desc}{specs_snippet}"
             )
         product_context = "\n".join(context_parts)
     else:

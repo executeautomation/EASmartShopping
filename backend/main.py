@@ -71,6 +71,17 @@ def list_products(
     return crud.get_all_products(category=category, search=search)
 
 
+@app.get("/api/products/top-rated", response_model=list[Product])
+def top_rated_products(
+    category: str | None = Query(None),
+    limit: int = Query(5, ge=1, le=20),
+    min_reviews: int = Query(100, ge=0),
+):
+    """Return products sorted by customer rating (descending)."""
+    logger.info(f"GET /api/products/top-rated category={category} limit={limit}")
+    return crud.get_top_rated_products(category=category, limit=limit, min_reviews=min_reviews)
+
+
 @app.get("/api/products/search/semantic", response_model=list[Product])
 def semantic_search(q: str = Query(..., description="Semantic search query")):
     """Semantic product search using ChromaDB vector similarity."""

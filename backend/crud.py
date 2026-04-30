@@ -5,6 +5,16 @@ from database import get_connection
 logger = logging.getLogger(__name__)
 
 
+def _parse_product_row(row: dict) -> dict:
+    """Deserialise JSON columns and ensure all new fields are present."""
+    row["options"] = json.loads(row.get("options") or "[]")
+    row["specs"] = json.loads(row.get("specs") or "{}")
+    row.setdefault("rating", 0.0)
+    row.setdefault("review_count", 0)
+    row.setdefault("manufacturer", "")
+    return row
+
+
 def get_all_products(category: str = None, search: str = None) -> list[dict]:
     conn = get_connection()
     cursor = conn.cursor()
@@ -15,18 +25,36 @@ def get_all_products(category: str = None, search: str = None) -> list[dict]:
         query += " AND category = ?"
         params.append(category)
     if search:
-        query += " AND (name LIKE ? OR description LIKE ?)"
-        params.extend([f"%{search}%", f"%{search}%"])
+        query += " AND (name LIKE ? OR description LIKE ? OR specs LIKE ? OR manufacturer LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
-    products = []
-    for row in rows:
-        p = dict(row)
-        p["options"] = json.loads(p.get("options") or "[]")
-        products.append(p)
-    return products
+    return [_parse_product_row(dict(row)) for row in rows]
+
+
+def search_products_by_spec(keywords: list[str]) -> list[dict]:
+    """SQL fallback: search specs JSON, description, and name for all given keywords.
+    Returns products that contain ALL keywords (case-insensitive).
+    """
+    if not keywords:
+        return []
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Build a condition that requires every keyword to appear in specs OR description OR name
+    conditions = " AND ".join(
+        "(LOWER(specs) LIKE ? OR LOWER(description) LIKE ? OR LOWER(name) LIKE ?)"
+        for _ in keywords
+    )
+    params = []
+    for kw in keywords:
+        kw_lower = f"%{kw.lower()}%"
+        params.extend([kw_lower, kw_lower, kw_lower])
+    cursor.execute(f"SELECT * FROM products WHERE {conditions}", params)
+    rows = cursor.fetchall()
+    conn.close()
+    return [_parse_product_row(dict(row)) for row in rows]
 
 
 def get_product(product_id: int) -> dict | None:
@@ -37,9 +65,31 @@ def get_product(product_id: int) -> dict | None:
     conn.close()
     if not row:
         return None
-    p = dict(row)
-    p["options"] = json.loads(p.get("options") or "[]")
-    return p
+    return _parse_product_row(dict(row))
+
+
+def get_top_rated_products(
+    category: str = None,
+    limit: int = 5,
+    min_reviews: int = 100,
+) -> list[dict]:
+    """Return products sorted by rating DESC, then review_count DESC.
+    Filters out products with fewer than min_reviews reviews to avoid
+    a single 5-star review skewing results.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = "SELECT * FROM products WHERE review_count >= ?"
+    params: list = [min_reviews]
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    query += " ORDER BY rating DESC, review_count DESC LIMIT ?"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return [_parse_product_row(dict(row)) for row in rows]
 
 
 def get_cart(session_id: str) -> dict:
@@ -80,6 +130,8 @@ def get_cart(session_id: str) -> dict:
         total += row["price"] * row["quantity"]
 
     return {"session_id": session_id, "items": items, "total": round(total, 2)}
+
+
 
 
 def add_to_cart(session_id: str, product_id: int, quantity: int = 1, selected_options: dict = None) -> dict:

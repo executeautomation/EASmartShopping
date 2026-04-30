@@ -14,6 +14,10 @@ export interface Product {
   image_url: string;  // emoji in new products
   stock: number;
   options: ProductOption[];
+  rating: number;
+  review_count: number;
+  specs: Record<string, unknown>;
+  manufacturer: string;
   created_at: string;
 }
 

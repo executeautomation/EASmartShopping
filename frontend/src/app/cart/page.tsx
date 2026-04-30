@@ -7,7 +7,11 @@ export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadCart(); }, []);
+  useEffect(() => {
+    loadCart();
+    window.addEventListener("cart-updated", loadCart);
+    return () => window.removeEventListener("cart-updated", loadCart);
+  }, []);
 
   const loadCart = async () => {
     try { setCart(await fetchCart()); }
