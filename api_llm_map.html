@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EASmartShopping — API / LLM Map</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #080e1a;
+    color: #cbd5e1;
+    min-height: 100vh;
+    padding: 32px 24px 60px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-bottom: 36px;
+  }
+
+  /* ── summary badges ── */
+  .summary-bar {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-total  { background:#12203a; border-color:#334155; color:#94a3b8; }
+  .badge-pure   { background:#0a1f12; border-color:#166534; color:#4ade80; }
+  .badge-embed  { background:#12200e; border-color:#3d5a0a; color:#a3e635; }
+  .badge-llm    { background:#1f0f0a; border-color:#7c2d12; color:#fb923c; }
+  .badge-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .dot-pure  { background:#4ade80; }
+  .dot-embed { background:#a3e635; }
+  .dot-llm   { background:#fb923c; }
+
+  /* ── section labels ── */
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 10px;
+    padding-left: 4px;
+    border-left: 2px solid #334155;
+    padding-left: 8px;
+  }
+
+  /* ── legend ── */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-bottom: 36px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.76rem;
+    color: #94a3b8;
+  }
+  .leg-box {
+    width: 14px; height: 14px; border-radius: 3px;
+    border: 1px solid;
+  }
+  .lb-pure  { background:#0a1f12; border-color:#166534; }
+  .lb-embed { background:#12200e; border-color:#3d5a0a; }
+  .lb-llm   { background:#1f1208; border-color:#7c2d12; }
+
+  /* ── flow diagram ── */
+  .flow-wrap {
+    max-width: 1100px;
+    margin: 0 auto 48px;
+    position: relative;
+  }
+
+  .flow-grid {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr;
+    gap: 0;
+    align-items: start;
+  }
+
+  .flow-col-label {
+    text-align: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 6px 6px 0 0;
+    margin-bottom: 8px;
+  }
+  .fcl-pure  { background:#0c2216; color:#4ade80; border: 1px solid #166534; }
+  .fcl-llm   { background:#1f1208; color:#fb923c; border: 1px solid #7c2d12; }
+  .fcl-mid   { background:transparent; color:#475569; }
+
+  /* cards */
+  .api-card {
+    border-radius: 8px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    border-left: 3px solid;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    position: relative;
+  }
+  .api-card.pure {
+    background: #0a1a12;
+    border-color: #166534;
+  }
+  .api-card.embed {
+    background: #111a08;
+    border-color: #4d7c0f;
+  }
+  .api-card.llm {
+    background: #1a1008;
+    border-color: #c2410c;
+  }
+
+  .api-card .method {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 5px;
+    letter-spacing: 0.05em;
+  }
+  .m-get    { background:#0e3a52; color:#38bdf8; }
+  .m-post   { background:#14402a; color:#4ade80; }
+  .m-put    { background:#3a2e0a; color:#fbbf24; }
+  .m-delete { background:#3a1010; color:#f87171; }
+
+  .api-path {
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+  .api-note {
+    color: #64748b;
+    font-size: 0.69rem;
+    margin-top: 3px;
+  }
+
+  /* centre connector column */
+  .connector-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 38px;
+    gap: 0;
+  }
+  .connector-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .ci-db    { background:#0e2745; border: 1px solid #1e40af; }
+  .ci-vec   { background:#1a2208; border: 1px solid #4d7c0f; }
+  .ci-llm   { background:#200e04; border: 1px solid #9a3412; }
+
+  .conn-label {
+    font-size: 0.6rem;
+    color: #475569;
+    margin-top: 3px;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── split-bar chart ── */
+  .bar-section {
+    max-width: 640px;
+    margin: 0 auto 48px;
+  }
+  .bar-wrap {
+    background:#0e1929;
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+    padding: 24px 28px;
+  }
+  .bar-title {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .stacked-bar {
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    margin-bottom: 16px;
+  }
+  .sb-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fff;
+    transition: flex 0.4s ease;
+  }
+  .sb-pure  { background: #16a34a; flex: 10; }
+  .sb-embed { background: #65a30d; flex: 2; }
+  .sb-llm   { background: #ea580c; flex: 2; }
+
+  .bar-legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .bl-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.74rem; color: #94a3b8;
+  }
+  .bl-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* ── data-layer diagram ── */
+  .arch-section {
+    max-width: 900px;
+    margin: 0 auto 48px;
+  }
+  .arch-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: stretch;
+  }
+  .arch-box {
+    flex: 1;
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid;
+    font-size: 0.76rem;
+  }
+  .ab-client  { background:#0d1b2a; border-color:#1e3a5f; }
+  .ab-api     { background:#0a1929; border-color:#1e40af; }
+  .ab-crud    { background:#0a1f12; border-color:#166534; }
+  .ab-sqlite  { background:#0e1929; border-color:#334155; }
+  .ab-embed   { background:#111a08; border-color:#4d7c0f; }
+  .ab-chroma  { background:#110d1f; border-color:#6d28d9; }
+  .ab-llm     { background:#1a1008; border-color:#c2410c; }
+  .ab-ollama  { background:#1a1208; border-color:#9a3412; }
+
+  .arch-box h4 { font-size: 0.72rem; font-weight: 700; margin-bottom: 4px; }
+  .arch-box p  { font-size: 0.67rem; color: #64748b; }
+
+  .arch-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #334155;
+    flex-shrink: 0;
+    width: 28px;
+  }
+
+  .tag-nllm  { display:inline-block; font-size:0.58rem; font-weight:700; padding:1px 6px; border-radius:3px; background:#0a2a14; color:#4ade80; border:1px solid #166534; margin-left:6px; vertical-align:middle; }
+  .tag-embed { display:inline-block; font-size:0.58rem; font-weight:700; padding:1px 6px; border-radius:3px; background:#101f05; color:#a3e635; border:1px solid #4d7c0f; margin-left:6px; vertical-align:middle; }
+  .tag-llm   { display:inline-block; font-size:0.58rem; font-weight:700; padding:1px 6px; border-radius:3px; background:#200a02; color:#fb923c; border:1px solid #9a3412; margin-left:6px; vertical-align:middle; }
+
+  /* ── table ── */
+  .table-section { max-width: 1080px; margin: 0 auto 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+  th {
+    background: #0e1929;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid #111827; vertical-align: middle; }
+  tr:hover td { background: #0a1520; }
+  tr.row-pure  td:first-child { border-left: 3px solid #16a34a; }
+  tr.row-embed td:first-child { border-left: 3px solid #65a30d; }
+  tr.row-llm   td:first-child { border-left: 3px solid #ea580c; }
+  .t-path { font-family: 'Fira Code', monospace; color: #e2e8f0; }
+  .t-note { color: #64748b; font-size: 0.68rem; }
+  .t-pure  { color: #4ade80; font-weight: 600; }
+  .t-embed { color: #a3e635; font-weight: 600; }
+  .t-llm   { color: #fb923c; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>EASmartShopping — API Endpoint Classification</h1>
+<p class="subtitle">Which endpoints are pure DB calls and which invoke the LLM stack (Embeddings / Ollama LLM)</p>
+
+<!-- ── SUMMARY BADGES ── -->
+<div class="summary-bar">
+  <div class="badge badge-total">
+    <span>14 total endpoints</span>
+  </div>
+  <div class="badge badge-pure">
+    <span class="badge-dot dot-pure"></span>
+    10 — Pure DB (No LLM)
+  </div>
+  <div class="badge badge-embed">
+    <span class="badge-dot dot-embed"></span>
+    2 — Embeddings only (Vector search, no text generation)
+  </div>
+  <div class="badge badge-llm">
+    <span class="badge-dot dot-llm"></span>
+    2 — Full LLM (Embeddings + Ollama text generation)
+  </div>
+</div>
+
+<!-- ── LEGEND ── -->
+<div class="legend">
+  <div class="legend-item"><div class="leg-box lb-pure"></div> Pure DB / CRUD — SQLite only, deterministic, fast</div>
+  <div class="legend-item"><div class="leg-box lb-embed"></div> Embeddings + ChromaDB — nomic-embed-text-v2-moe, no text generation</div>
+  <div class="legend-item"><div class="leg-box lb-llm"></div> Full LLM — Embeddings + ChromaDB + Ollama (gemma4:e2b) text generation</div>
+</div>
+
+<!-- ── STACKED BAR ── -->
+<div class="bar-section">
+  <div class="bar-wrap">
+    <div class="bar-title">Endpoint distribution by AI involvement (14 endpoints)</div>
+    <div class="stacked-bar">
+      <div class="sb-seg sb-pure"  style="flex:10">10 — Pure DB</div>
+      <div class="sb-seg sb-embed" style="flex:2">2 — Embed</div>
+      <div class="sb-seg sb-llm"   style="flex:2">2 — LLM</div>
+    </div>
+    <div class="bar-legend">
+      <div class="bl-item"><div class="bl-dot" style="background:#16a34a"></div>Pure DB / CRUD (71%)</div>
+      <div class="bl-item"><div class="bl-dot" style="background:#65a30d"></div>Embeddings only (14%)</div>
+      <div class="bl-item"><div class="bl-dot" style="background:#ea580c"></div>Full LLM (14%)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DATA-LAYER FLOW ── -->
+<div class="arch-section">
+  <div class="section-label" style="margin-bottom:16px;">Call-stack by endpoint type</div>
+
+  <!-- Pure DB -->
+  <div class="arch-row">
+    <div class="arch-box ab-client">
+      <h4 style="color:#38bdf8">Client / Postman</h4>
+      <p>Any HTTP call</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-api">
+      <h4 style="color:#60a5fa">FastAPI Route<span class="tag-nllm">Pure DB</span></h4>
+      <p>Products · Cart · Orders · Health · /pending</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-crud">
+      <h4 style="color:#4ade80">crud.py</h4>
+      <p>Raw SQL on ecommerce.db (SQLite WAL)</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-sqlite">
+      <h4 style="color:#94a3b8">SQLite</h4>
+      <p>ecommerce.db — products, cart, orders tables</p>
+    </div>
+  </div>
+
+  <!-- Embeddings only -->
+  <div class="arch-row">
+    <div class="arch-box ab-client">
+      <h4 style="color:#38bdf8">Client / Postman</h4>
+      <p>Any HTTP call</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-api">
+      <h4 style="color:#a3e635">FastAPI Route<span class="tag-embed">Embed only</span></h4>
+      <p>/search/semantic · /products/{id}/similar</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-embed">
+      <h4 style="color:#a3e635">rag.search_products_rag()</h4>
+      <p>Embeds query → nomic-embed-text-v2-moe</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-chroma">
+      <h4 style="color:#a78bfa">ChromaDB</h4>
+      <p>chroma_db/ — vector similarity, returns product_ids → CRUD lookup</p>
+    </div>
+  </div>
+
+  <!-- Full LLM -->
+  <div class="arch-row">
+    <div class="arch-box ab-client">
+      <h4 style="color:#38bdf8">Client / Postman</h4>
+      <p>Any HTTP call</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-api">
+      <h4 style="color:#fb923c">FastAPI Route<span class="tag-llm">Full LLM</span></h4>
+      <p>POST /api/chat · POST /api/chat/stream</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-llm">
+      <h4 style="color:#fb923c">rag.py — generate / stream</h4>
+      <p>Intent detection → RAG retrieval (embed+chroma) → prompt assembly → LLM call</p>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box ab-ollama">
+      <h4 style="color:#f97316">Ollama (gemma4:e2b)</h4>
+      <p>Text generation — non-deterministic, latency 1–10 s depending on context</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── TWO-COLUMN FLOW DIAGRAM ── -->
+<div class="flow-wrap">
+  <div class="section-label" style="margin-bottom:16px;">Endpoint cards — side-by-side</div>
+  <div class="flow-grid">
+
+    <!-- LEFT: Non-LLM -->
+    <div>
+      <div class="flow-col-label fcl-pure">Non-LLM Endpoints (12)</div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/products</span>
+        <div class="api-note">SQL SELECT with optional category/search filter · crud.get_all_products()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/products/top-rated</span>
+        <div class="api-note">SQL ORDER BY rating DESC, filterable · crud.get_top_rated_products()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/products/{id}</span>
+        <div class="api-note">SQL SELECT by primary key · crud.get_product()</div>
+      </div>
+
+      <div class="api-card embed">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/products/search/semantic</span>
+        <div class="api-note">Embeds query via nomic-embed-text → ChromaDB similarity → CRUD lookup
+          <br/><strong style="color:#a3e635">Embed model only — no text generation</strong></div>
+      </div>
+
+      <div class="api-card embed">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/products/{id}/similar</span>
+        <div class="api-note">Builds query from product name+description → ChromaDB k-NN → CRUD lookup
+          <br/><strong style="color:#a3e635">Embed model only — no text generation</strong></div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/cart/{session_id}</span>
+        <div class="api-note">SQL SELECT cart + items · crud.get_cart()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-post">POST</span>
+        <span class="api-path">/api/cart/{session_id}/add</span>
+        <div class="api-note">SQL INSERT/UPDATE cart item · crud.add_to_cart()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-put">PUT</span>
+        <span class="api-path">/api/cart/{session_id}/update</span>
+        <div class="api-note">SQL UPDATE quantity · crud.update_cart_item()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-delete">DELETE</span>
+        <span class="api-path">/api/cart/{session_id}/remove/{id}</span>
+        <div class="api-note">SQL DELETE single cart row · crud.remove_from_cart()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-delete">DELETE</span>
+        <span class="api-path">/api/cart/{session_id}/clear</span>
+        <div class="api-note">SQL DELETE all rows for session · crud.clear_cart()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-post">POST</span>
+        <span class="api-path">/api/cart/{session_id}/bundle</span>
+        <div class="api-note">Batch INSERT for pre-selected bundle items + in-memory _pending_bundle.pop()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-delete">DELETE</span>
+        <span class="api-path">/api/chat/{session_id}/pending</span>
+        <div class="api-note">Clears in-memory _pending_add / _pending_bundle dicts — no DB, no LLM</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-post">POST</span>
+        <span class="api-path">/api/orders</span>
+        <div class="api-note">SQL INSERT order from cart · crud.create_order()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/orders/{id}</span>
+        <div class="api-note">SQL SELECT order by PK · crud.get_order()</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/orders</span>
+        <div class="api-note">SQL SELECT all orders, optional session_id filter</div>
+      </div>
+
+      <div class="api-card pure">
+        <span class="method m-get">GET</span>
+        <span class="api-path">/api/health</span>
+        <div class="api-note">Returns {"status":"healthy"} — no DB, no LLM</div>
+      </div>
+    </div>
+
+    <!-- MIDDLE spacer -->
+    <div style="display:flex;flex-direction:column;align-items:center;padding-top:42px;gap:6px;">
+      <div style="width:1px;flex:1;background:linear-gradient(to bottom,#1e293b,#334155,#1e293b)"></div>
+    </div>
+
+    <!-- RIGHT: LLM -->
+    <div>
+      <div class="flow-col-label fcl-llm">LLM Endpoints (2)</div>
+
+      <div class="api-card llm">
+        <span class="method m-post">POST</span>
+        <span class="api-path">/api/chat</span>
+        <div class="api-note" style="margin-top:6px;">
+          <strong style="color:#fb923c">Full LLM pipeline — non-deterministic, ~1–10s latency</strong><br/><br/>
+          <strong style="color:#cbd5e1">Step 1 — Intent detection (pure Python, no LLM)</strong><br/>
+          Regex-based: add, remove, update qty, clear, bundle, bundle-confirm, compare, reorder, top-rated<br/><br/>
+          <strong style="color:#cbd5e1">Step 2 — RAG retrieval (embed model)</strong><br/>
+          Query → nomic-embed-text-v2-moe → ChromaDB → top-k product docs<br/>
+          Fallback: spec SQL search (crud.search_products_by_spec)<br/><br/>
+          <strong style="color:#cbd5e1">Step 3 — Prompt assembly</strong><br/>
+          System prompt + conversation history + retrieved product context assembled in memory<br/><br/>
+          <strong style="color:#fb923c">Step 4 — Ollama LLM call (gemma4:e2b)</strong><br/>
+          ChatOllama.invoke() → generates natural-language reply<br/><br/>
+          Returns: response (str), cart_updated (bool), products_mentioned (list)
+        </div>
+      </div>
+
+      <div style="height: 16px;"></div>
+
+      <div class="api-card llm">
+        <span class="method m-post">POST</span>
+        <span class="api-path">/api/chat/stream</span>
+        <div class="api-note" style="margin-top:6px;">
+          <strong style="color:#fb923c">Same pipeline as /api/chat — but streamed via SSE</strong><br/><br/>
+          Returns <code>text/event-stream</code> — one <code>data:</code> line per event:<br/>
+          &nbsp;&nbsp;• <code>{"type":"token","content":"…"}</code> — partial text<br/>
+          &nbsp;&nbsp;• <code>{"type":"done","cart_updated":…,"bundle_items":…,"pending_options":…}</code><br/>
+          &nbsp;&nbsp;• <code>{"type":"error","content":"…"}</code><br/><br/>
+          <strong style="color:#fb923c">LLM is invoked via ChatOllama.astream()</strong> — async token-by-token<br/>
+          Latency to first token: ~200–800ms. Total: same as /api/chat
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; padding: 14px 16px; background:#0a1020; border-radius:8px; border:1px solid #1e293b; font-size:0.72rem;">
+        <div style="color:#f87171;font-weight:700;margin-bottom:8px;">⚠ Testing implications</div>
+        <div style="color:#94a3b8;line-height:1.6;">
+          • Results are <strong style="color:#e2e8f0">non-deterministic</strong> — same input may yield different wording each run<br/>
+          • Response time varies widely (model load, context size)<br/>
+          • Requires <strong style="color:#e2e8f0">Ollama running</strong> with gemma4:e2b loaded<br/>
+          • Use <strong style="color:#fb923c">GEval / deepeval</strong> for quality assertions, not exact string matching<br/>
+          • Side-effects: may modify cart, _pending_add, _pending_bundle in memory
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── FULL TABLE ── -->
+<div class="table-section">
+  <div class="section-label" style="margin-bottom:12px;">Complete endpoint reference</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Group</th>
+        <th>LLM involvement</th>
+        <th>Backing call</th>
+        <th>Testable without Ollama</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/products</td>
+        <td>Products</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_all_products()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/products/top-rated</td>
+        <td>Products</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_top_rated_products()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/products/{id}</td>
+        <td>Products</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_product()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-embed">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/products/search/semantic</td>
+        <td>Products</td>
+        <td class="t-embed">Embed only (nomic-embed-text)</td>
+        <td class="t-note">search_products_rag() → ChromaDB</td>
+        <td class="t-embed">⚠ Needs embed model</td>
+      </tr>
+      <tr class="row-embed">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/products/{id}/similar</td>
+        <td>Products</td>
+        <td class="t-embed">Embed only (nomic-embed-text)</td>
+        <td class="t-note">search_products_rag() → ChromaDB</td>
+        <td class="t-embed">⚠ Needs embed model</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/cart/{session_id}</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_cart()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-post">POST</span></td>
+        <td class="t-path">/api/cart/{session_id}/add</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.add_to_cart()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-put">PUT</span></td>
+        <td class="t-path">/api/cart/{session_id}/update</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.update_cart_item()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-delete">DELETE</span></td>
+        <td class="t-path">/api/cart/{session_id}/remove/{id}</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.remove_from_cart()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-delete">DELETE</span></td>
+        <td class="t-path">/api/cart/{session_id}/clear</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.clear_cart()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-post">POST</span></td>
+        <td class="t-path">/api/cart/{session_id}/bundle</td>
+        <td>Cart</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.add_to_cart() × N + _pending_bundle.pop()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-delete">DELETE</span></td>
+        <td class="t-path">/api/chat/{session_id}/pending</td>
+        <td>Chat</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">In-memory dict.pop() only</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-post">POST</span></td>
+        <td class="t-path">/api/orders</td>
+        <td>Orders</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.create_order()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/orders/{id}</td>
+        <td>Orders</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_order()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/orders</td>
+        <td>Orders</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">crud.get_orders()</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-pure">
+        <td><span class="method m-get">GET</span></td>
+        <td class="t-path">/api/health</td>
+        <td>Health</td>
+        <td class="t-pure">None</td>
+        <td class="t-note">Inline dict return</td>
+        <td class="t-pure">✓ Yes</td>
+      </tr>
+      <tr class="row-llm">
+        <td><span class="method m-post">POST</span></td>
+        <td class="t-path">/api/chat</td>
+        <td>Chat</td>
+        <td class="t-llm">Full LLM (embed + gemma4:e2b)</td>
+        <td class="t-note">generate_chat_response() → ChatOllama.invoke()</td>
+        <td class="t-llm">✗ Needs Ollama</td>
+      </tr>
+      <tr class="row-llm">
+        <td><span class="method m-post">POST</span></td>
+        <td class="t-path">/api/chat/stream</td>
+        <td>Chat</td>
+        <td class="t-llm">Full LLM (embed + gemma4:e2b) — SSE</td>
+        <td class="t-note">stream_chat_response() → ChatOllama.astream()</td>
+        <td class="t-llm">✗ Needs Ollama</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p style="text-align:center;font-size:0.66rem;color:#334155;margin-top:32px;">
+  EASmartShopping · Backend: FastAPI (port 8000) · LLM: gemma4:e2b via Ollama · Embeddings: nomic-embed-text-v2-moe · Vector store: ChromaDB
+</p>
+
+</body>
+</html>
