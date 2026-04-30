@@ -721,6 +721,29 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
 
     _is_qty_update, _new_qty, _is_qty_delta = _detect_update_quantity(query_lower)
 
+    # ── Dismiss stale pending bundle ──────────────────────────────────────────
+    # If the user starts a completely new request (new bundle, new add, browse,
+    # explicit rejection, or a question) while a bundle is pending, discard it
+    # so it doesn't keep re-appearing on every response.
+    _bundle_dismiss_signals = [
+        "no", "nope", "nah", "cancel", "never mind", "nevermind", "forget it",
+        "don't want", "dont want", "not interested", "skip it", "skip the bundle",
+        "dismiss", "close", "clear bundle",
+    ]
+    if session_id in _pending_bundle and _pending_bundle[session_id]:
+        _is_new_bundle   = _detect_bundle_request(query_lower)
+        _is_new_add      = _detect_add_to_cart(query_lower)
+        _is_browse       = any(p in query_lower for p in [
+            "show me", "what do you have", "find", "search", "browse",
+            "recommend", "suggest", "tell me about", "what are",
+        ])
+        _is_rejection    = any(p in query_lower for p in _bundle_dismiss_signals)
+        _is_question     = query_lower.strip().endswith("?") or query_lower.startswith(
+            ("what", "how", "which", "where", "when", "why", "is ", "are ", "can ", "do ", "does ")
+        )
+        if _is_new_bundle or _is_new_add or _is_browse or _is_rejection or _is_question:
+            _pending_bundle.pop(session_id, None)
+
     # ── Cart mutation actions ─────────────────────────────────────────────────
     # 1. Bundle item removal — catches "remove X" / "don't want X" when a bundle is pending
     #    Must run before bundle_confirm and before cart remove so it edits the list, not the cart.
