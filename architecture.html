@@ -299,7 +299,7 @@
 <body>
 
 <h1>EASmartShopping</h1>
-<p class="subtitle">Full-Stack Architecture &nbsp;·&nbsp; Next.js + FastAPI + Ollama RAG</p>
+<p class="subtitle">Full-Stack Architecture &nbsp;·&nbsp; Next.js + FastAPI + Ollama RAG &nbsp;·&nbsp; <span style="color:#475569">Updated May 2026</span></p>
 
 <!-- ════════════════════════════════════════════════════
      MAIN ARCHITECTURE COLUMNS
@@ -317,7 +317,8 @@
         <span style="font-size:0.7rem;color:#64748b">Session ID stored in <code style="color:#7dd3fc">localStorage</code></span>
         <div class="chips">
           <span class="chip page">🛍 Products &nbsp;<code>/</code></span>
-          <span class="chip page">🛒 Cart &nbsp;<code>/cart</code></span>
+          <span class="chip page">� Product Detail &nbsp;<code>/products/[id]</code></span>
+          <span class="chip page">�🛒 Cart &nbsp;<code>/cart</code></span>
           <span class="chip page">📦 Checkout &nbsp;<code>/checkout</code></span>
           <span class="chip page">📋 Orders &nbsp;<code>/orders</code></span>
         </div>
@@ -332,12 +333,18 @@
         <div class="chips">
           <span class="chip comp">💬 ChatWidget</span>
           <span class="chip comp">🔗 Navbar (live cart count)</span>
+          <span class="chip comp">⭐ StarRating (partial-fill)</span>
         </div>
         <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">ChatWidget features</span>
         <div class="chips">
-          <span class="chip route">🎛 Option Picker Card</span>
-          <span class="chip route">📦 Bundle Card</span>
+          <span class="chip route">🎛 Option Picker Card (multi-product)</span>
+          <span class="chip route">📦 Bundle Card (auto-dismiss)</span>
           <span class="chip route">📊 Comparison Table</span>
+        </div>
+        <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">Product Detail page</span>
+        <div class="chips">
+          <span class="chip route">Rating · Specs tabs · Similar products scroll</span>
+          <span class="chip route">cart-updated event → real-time cart refresh</span>
         </div>
       </div>
     </div>
@@ -349,6 +356,8 @@
         <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">lib/api.ts — REST calls</span>
         <div class="chips">
           <span class="chip fn">fetchProducts()</span>
+          <span class="chip fn">fetchProduct(id)</span>
+          <span class="chip fn">fetchSimilarProducts(id)</span>
           <span class="chip fn">fetchCart()</span>
           <span class="chip fn">addToCart()</span>
           <span class="chip fn">addBundleToCart()</span>
@@ -386,6 +395,8 @@
         <span style="font-size:0.7rem;color:#64748b">Products</span>
         <div class="chips">
           <span class="chip ep">GET /api/products</span>
+          <span class="chip ep">GET /api/products/{id}</span>
+          <span class="chip ep">GET /api/products/top-rated</span>
           <span class="chip ep">GET /api/products/search/semantic</span>
           <span class="chip ep">GET /api/products/{id}/similar</span>
         </div>
@@ -419,6 +430,7 @@
         <div class="chips">
           <span class="chip fn">get_all_products()</span>
           <span class="chip fn">get_product(id)</span>
+          <span class="chip fn">search_products_by_spec(keywords)</span>
           <span class="chip fn">get_cart(session_id)</span>
           <span class="chip fn">add_to_cart()</span>
           <span class="chip fn">update_cart_item()</span>
@@ -426,7 +438,7 @@
           <span class="chip fn">create_order()</span>
           <span class="chip fn">get_orders(session_id)</span>
         </div>
-        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">Atomic order creation: snapshot items → update stock → clear cart</span>
+        <span style="font-size:0.68rem;color:#4b5563;margin-top:6px">Atomic order creation: snapshot items → update stock → clear cart · get_all_products searches name, description, specs &amp; manufacturer</span>
       </div>
     </div>
 
@@ -437,25 +449,33 @@
         <span style="font-size:0.7rem;color:#64748b;margin-bottom:2px">Intent Detection</span>
         <div class="chips">
           <span class="chip comp">Add to Cart</span>
+          <span class="chip comp">Add All [Category]</span>
           <span class="chip comp">Remove</span>
-          <span class="chip comp">Update Qty</span>
+          <span class="chip comp">Update Qty (absolute &amp; delta +N)</span>
           <span class="chip comp">Bundle Request</span>
           <span class="chip comp">Compare Products</span>
+          <span class="chip comp">Top Rated Query</span>
           <span class="chip comp">Reorder</span>
+          <span class="chip comp">Clear Cart</span>
         </div>
         <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">Query Processing</span>
         <div class="chips">
           <span class="chip route">Contextual pronoun resolution</span>
+          <span class="chip route">History-based product name extraction</span>
           <span class="chip route">Query normalization (strip wh-words)</span>
           <span class="chip route">Multi-item split ("X and Y")</span>
+          <span class="chip route">Spec / material SQL fallback (k=10)</span>
           <span class="chip route">Option parsing (size, color, etc.)</span>
           <span class="chip route">Re-rank by name match</span>
+          <span class="chip route">Bundle category whitelist filter</span>
+          <span class="chip route">Bundle auto-dismiss on new request</span>
+          <span class="chip route">Strong add-intent overrides browse guard</span>
         </div>
         <span style="font-size:0.7rem;color:#64748b;margin-top:4px;margin-bottom:2px">Session State (in-memory)</span>
         <div class="chips">
           <span class="chip warn">_conversation_history (8 turns)</span>
-          <span class="chip warn">_pending_add</span>
-          <span class="chip warn">_pending_bundle</span>
+          <span class="chip warn">_pending_add (multi-product)</span>
+          <span class="chip warn">_pending_bundle (auto-dismissed)</span>
         </div>
       </div>
     </div>
@@ -602,8 +622,8 @@
     </div>
     <div class="flow-step rag">
       <div class="flow-num">5</div>
-      <div class="flow-step-label">Vector Search</div>
-      <div class="flow-step-sub">ChromaDB + nomic-embed<br/>Top 5 products retrieved</div>
+      <div class="flow-step-label">Vector + Spec Search</div>
+      <div class="flow-step-sub">ChromaDB k=10 + spec SQL fallback<br/>Re-ranked by name match</div>
     </div>
     <div class="flow-step db">
       <div class="flow-num">6</div>

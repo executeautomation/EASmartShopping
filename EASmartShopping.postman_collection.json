@@ -1,0 +1,1254 @@
+{
+  "info": {
+    "_postman_id": "ea-smart-shopping-v1",
+    "name": "EASmartShopping API",
+    "description": "Full API coverage for the EASmartShopping FastAPI backend (port 8000).\n\nCollection variables:\n- `baseUrl`   → http://localhost:8000\n- `sessionId` → auto-generated UUID on collection open (see Pre-request Script on the collection root)\n- `productId` → set manually or via the 'List Products' response to pick a real ID",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "test-session-001",
+      "type": "string",
+      "description": "Cart / chat session identifier. Change freely or use the pre-request script to auto-generate."
+    },
+    {
+      "key": "productId",
+      "value": "1",
+      "type": "string",
+      "description": "Product ID used in detail / similar / cart requests."
+    },
+    {
+      "key": "orderId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-generate a UUID session if none set yet",
+          "if (!pm.collectionVariables.get('sessionId') || pm.collectionVariables.get('sessionId') === 'test-session-001') {",
+          "  const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {",
+          "    const r = Math.random() * 16 | 0;",
+          "    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);",
+          "  });",
+          "  pm.collectionVariables.set('sessionId', uuid);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Sports",
+                  "description": "Filter by category (Sports, Electronics, Clothing, etc.)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "running",
+                  "description": "Full-text search on product name/description",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns all products. Optionally filter by `category` or full-text `search`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data).to.be.an('array');",
+                  "  if (data.length > 0) {",
+                  "    // Persist first product ID for other requests",
+                  "    pm.collectionVariables.set('productId', data[0].id);",
+                  "  }",
+                  "});",
+                  "pm.test('Products have required fields', () => {",
+                  "  const data = pm.response.json();",
+                  "  if (data.length > 0) {",
+                  "    pm.expect(data[0]).to.have.all.keys('id','name','price','category','stock');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Products — Filter by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?category=Sports",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Sports"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All results match category', () => {",
+                  "  const data = pm.response.json();",
+                  "  data.forEach(p => pm.expect(p.category).to.equal('Sports'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Products — Full-text",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?search=running",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "running"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Fetch a single product. Uses `productId` collection variable (auto-set by 'List All Products')."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Product has enriched fields', () => {",
+                  "  const p = pm.response.json();",
+                  "  pm.expect(p).to.have.property('rating');",
+                  "  pm.expect(p).to.have.property('review_count');",
+                  "  pm.expect(p).to.have.property('specs');",
+                  "  pm.expect(p).to.have.property('manufacturer');",
+                  "  pm.expect(p.rating).to.be.within(0, 5);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product — Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/99999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "99999"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Similar Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}/similar",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}", "similar"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "4",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns up to 4 vector-similar products (excludes the source product itself)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Source product not in results', () => {",
+                  "  const pid = parseInt(pm.collectionVariables.get('productId'));",
+                  "  const data = pm.response.json();",
+                  "  data.forEach(p => pm.expect(p.id).to.not.equal(pid));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Top-Rated Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/top-rated?limit=5&min_reviews=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "top-rated"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5",
+                  "description": "Max results (1–20)"
+                },
+                {
+                  "key": "min_reviews",
+                  "value": "100",
+                  "description": "Minimum review_count filter"
+                },
+                {
+                  "key": "category",
+                  "value": "Sports",
+                  "description": "Optional category filter",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Results sorted by rating DESC', () => {",
+                  "  const data = pm.response.json();",
+                  "  for (let i = 1; i < data.length; i++) {",
+                  "    pm.expect(data[i].rating).to.be.lte(data[i-1].rating);",
+                  "  }",
+                  "});",
+                  "pm.test('Result count respects limit', () => {",
+                  "  pm.expect(pm.response.json().length).to.be.lte(5);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Top-Rated — Category Filter",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/top-rated?category=Electronics&limit=3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "top-rated"],
+              "query": [
+                { "key": "category", "value": "Electronics" },
+                { "key": "limit", "value": "3" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All from Electronics', () => {",
+                  "  pm.response.json().forEach(p => pm.expect(p.category).to.equal('Electronics'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Top-Rated — Invalid limit=0 (422)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/top-rated?limit=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "top-rated"],
+              "query": [{ "key": "limit", "value": "0" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422 for limit=0', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Semantic Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/search/semantic?q=waterproof outdoor jacket",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "search", "semantic"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "waterproof outdoor jacket",
+                  "description": "Natural-language query for ChromaDB vector search"
+                }
+              ]
+            },
+            "description": "ChromaDB vector similarity search. Requires the backend vector store to be built."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cart response shape', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data).to.have.property('session_id');",
+                  "  pm.expect(data).to.have.property('items');",
+                  "  pm.expect(data).to.have.property('total');",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{productId}},\n  \"quantity\": 1,\n  \"selected_options\": {}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/add",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "add"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cart has items', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data.items.length).to.be.gte(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Item with Options (size/color)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{productId}},\n  \"quantity\": 2,\n  \"selected_options\": {\n    \"size\": \"M\",\n    \"color\": \"Blue\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/add",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "add"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Cart Item Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": {{productId}},\n  \"quantity\": 3\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/update",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "update"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Quantity updated', () => {",
+                  "  const pid = parseInt(pm.collectionVariables.get('productId'));",
+                  "  const item = pm.response.json().items.find(i => i.product_id === pid);",
+                  "  if (item) pm.expect(item.quantity).to.equal(3);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove Item from Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/remove/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "remove", "{{productId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Item removed from cart', () => {",
+                  "  const pid = parseInt(pm.collectionVariables.get('productId'));",
+                  "  const data = pm.response.json();",
+                  "  const found = data.items.find(i => i.product_id === pid);",
+                  "  pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/clear",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "clear"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cart is empty', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data.items).to.be.an('array').that.is.empty;",
+                  "  pm.expect(data.total).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Bundle to Cart",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"product_id\": 1, \"selected_options\": {} },\n    { \"product_id\": 2, \"selected_options\": {} },\n    { \"product_id\": 3, \"selected_options\": {} }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/cart/{{sessionId}}/bundle",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cart", "{{sessionId}}", "bundle"]
+            },
+            "description": "Adds a pre-selected bundle of products to the cart in one shot. Also clears any pending bundle state in the chatbot."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cart has items', () => {",
+                  "  pm.expect(pm.response.json().items.length).to.be.gte(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order (Checkout)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{sessionId}}\",\n  \"customer_name\": \"Jane Doe\",\n  \"customer_email\": \"jane@example.com\",\n  \"shipping_address\": \"123 Main St, Springfield, IL 62701\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            },
+            "description": "Converts the current cart for `sessionId` into a placed order. Cart must be non-empty — run 'Add Item to Cart' first."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Order created', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data).to.have.property('id');",
+                  "  pm.expect(data.status).to.equal('pending');",
+                  "  pm.collectionVariables.set('orderId', data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "{{orderId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Order shape', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data).to.have.all.keys('id','session_id','customer_name','customer_email','shipping_address','total','status','created_at','items');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Order — Not Found (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/99999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "99999"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [
+                {
+                  "key": "session_id",
+                  "value": "{{sessionId}}",
+                  "description": "Filter orders to a specific session",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Orders — by Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?session_id={{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [{ "key": "session_id", "value": "{{sessionId}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All orders belong to session', () => {",
+                  "  const sid = pm.collectionVariables.get('sessionId');",
+                  "  pm.response.json().forEach(o => pm.expect(o.session_id).to.equal(sid));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order — Empty Cart (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"empty-cart-session-xyz\",\n  \"customer_name\": \"Ghost User\",\n  \"customer_email\": \"ghost@example.com\",\n  \"shipping_address\": \"Nowhere\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 for empty cart', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Chatbot",
+      "item": [
+        {
+          "name": "Chat — Product Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Show me the best running shoes under $100\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Standard (non-streaming) chat endpoint. Returns full response in one shot."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response shape', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data).to.have.property('response');",
+                  "  pm.expect(data).to.have.property('cart_updated');",
+                  "  pm.expect(data).to.have.property('products_mentioned');",
+                  "  pm.expect(data.response.length).to.be.gte(10);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Add to Cart (NL)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Add 2 running shoes to my cart\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('cart_updated flag', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data.response).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Bundle Request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Suggest a gym starter bundle for me\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response mentions bundle items', () => {",
+                  "  const text = pm.response.json().response.toLowerCase();",
+                  "  pm.expect(text.length).to.be.gte(20);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Add All Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Add all sports products to my cart\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Top-Rated Query",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What are the highest rated electronics you have?\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Non-empty response', () => pm.expect(pm.response.json().response.length).to.be.gte(10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Spec Search (material/spec query)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Show me products with nylon and spandex material\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Update Cart Quantity",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Change the quantity of the shoes to 3\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Remove from Cart (NL)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Remove the shoes from my cart\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Clear Cart (NL)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Clear everything from my cart\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Reorder Previous",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Reorder my last order\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat — Product Comparison",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Compare the running shoes and the trail boots\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat Stream (SSE) — Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Recommend me a waterproof jacket\",\n  \"session_id\": \"{{sessionId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "stream"]
+            },
+            "description": "SSE streaming endpoint. Each `data:` line is a JSON event: `{type: 'token'|'done'|'error', ...}`. Note: Postman displays the raw SSE stream in the response body."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response has SSE data lines', () => {",
+                  "  const text = pm.response.text();",
+                  "  pm.expect(text).to.include('data:');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clear Pending State (Bundle / Options)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/{{sessionId}}/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "{{sessionId}}", "pending"]
+            },
+            "description": "Clears `_pending_add` and `_pending_bundle` state for the session. Called by the UI when the user adds a product directly (bypassing the chatbot confirmation flow)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cleared flag', () => {",
+                  "  pm.expect(pm.response.json().cleared).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "FastAPI auto-generated root. Use /docs for Swagger UI, /redoc for ReDoc."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Server is up', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAPI Docs (Swagger UI)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["docs"]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI Schema (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/openapi.json",
+              "host": ["{{baseUrl}}"],
+              "path": ["openapi.json"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Is valid OpenAPI schema', () => {",
+                  "  const schema = pm.response.json();",
+                  "  pm.expect(schema).to.have.property('openapi');",
+                  "  pm.expect(schema).to.have.property('paths');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

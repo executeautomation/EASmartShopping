@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EASmartShopping – Test Coverage</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 24px 80px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 1.9rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #38bdf8, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #475569;
+      font-size: 0.85rem;
+      margin-bottom: 40px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* ── Summary bar ── */
+    .summary-bar {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .summary-card {
+      padding: 18px 20px;
+      border-radius: 12px;
+      border: 1px solid;
+      text-align: center;
+    }
+    .summary-card .num {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .summary-card .label {
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .sc-covered  { background: #0d2119; border-color: #16a34a; }
+    .sc-covered  .num { color: #4ade80; }
+    .sc-covered  .label { color: #86efac; }
+    .sc-missing  { background: #1c0a0a; border-color: #b91c1c; }
+    .sc-missing  .num { color: #f87171; }
+    .sc-missing  .label { color: #fca5a5; }
+    .sc-partial  { background: #1c1400; border-color: #b45309; }
+    .sc-partial  .num { color: #fb923c; }
+    .sc-partial  .label { color: #fdba74; }
+    .sc-files    { background: #0c1929; border-color: #1d4ed8; }
+    .sc-files    .num { color: #60a5fa; }
+    .sc-files    .label { color: #93c5fd; }
+
+    /* ── Section label ── */
+    .section-label {
+      max-width: 1200px;
+      margin: 0 auto 16px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #475569;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+    }
+
+    /* ── Coverage table ── */
+    .coverage-wrap {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    thead tr {
+      background: #131825;
+    }
+    th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      border-bottom: 1px solid #1e293b;
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #131825;
+      vertical-align: top;
+    }
+    tr:hover td { background: #131825; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .s-covered  { background: #14532d; color: #86efac; border: 1px solid #166534; }
+    .s-partial  { background: #422006; color: #fdba74; border: 1px solid #c2410c; }
+    .s-missing  { background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; }
+
+    .file-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 0.67rem;
+      font-weight: 500;
+      margin: 1px 2px 1px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .ft-intent   { background: #172554; color: #bfdbfe; border: 1px solid #1e40af; }
+    .ft-cart     { background: #0f3a20; color: #bbf7d0; border: 1px solid #166534; }
+    .ft-bundle   { background: #1c1533; color: #ddd6fe; border: 1px solid #5b21b6; }
+    .ft-rag      { background: #0c2537; color: #bae6fd; border: 1px solid #0369a1; }
+    .ft-conv     { background: #1a1a0d; color: #fef08a; border: 1px solid #854d0e; }
+    .ft-rec      { background: #1a1222; color: #e9d5ff; border: 1px solid #7c3aed; }
+    .ft-reorder  { background: #1e1030; color: #c4b5fd; border: 1px solid #6d28d9; }
+    .ft-compare      { background: #0d2119; color: #a7f3d0; border: 1px solid #059669; }
+    .ft-intent-new  { background: #0d1f40; color: #93c5fd; border: 1px solid #2563eb; }
+    .ft-add-all     { background: #0a2318; color: #6ee7b7; border: 1px solid #059669; }
+    .ft-spec        { background: #1a1500; color: #fde68a; border: 1px solid #b45309; }
+    .ft-dismiss     { background: #1a0a1f; color: #d8b4fe; border: 1px solid #7c3aed; }
+    .ft-toprated    { background: #0c1f2e; color: #7dd3fc; border: 1px solid #0284c7; }
+    .ft-api         { background: #1a1a0a; color: #fef08a; border: 1px solid #ca8a04; }
+
+    .metric-tag {
+      display: inline-flex;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 0.65rem;
+      margin: 1px 2px 1px 0;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      background: #1e293b;
+    }
+    .metric-tag.geval   { background: #1c1533; color: #c4b5fd; border-color: #5b21b6; }
+    .metric-tag.answer  { background: #0c2537; color: #bae6fd; border-color: #0369a1; }
+    .metric-tag.context { background: #0d2119; color: #86efac; border-color: #166534; }
+    .metric-tag.unit    { background: #131825; color: #94a3b8; border-color: #334155; }
+
+    .feature-name { color: #e2e8f0; font-weight: 600; }
+    .feature-sub  { color: #64748b; font-size: 0.68rem; margin-top: 2px; }
+    .test-count   { color: #94a3b8; font-size: 0.7rem; }
+
+    /* ── Missing features panel ── */
+    .missing-grid {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .missing-card {
+      background: #12080a;
+      border: 1px solid #7f1d1d;
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .missing-card h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #f87171;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .missing-card p {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+    .missing-card code {
+      font-family: 'Courier New', monospace;
+      background: #1e293b;
+      color: #7dd3fc;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+    }
+    .suggested-test {
+      background: #1a0d20;
+      border: 1px solid #5b21b6;
+      border-radius: 7px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      font-size: 0.68rem;
+      color: #c4b5fd;
+    }
+    .suggested-test .st-label {
+      font-size: 0.6rem;
+      color: #7c3aed;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+
+    /* ── File legend ── */
+    .legend {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 18px 20px;
+      background: #131825;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+    }
+    .legend-title {
+      width: 100%;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.72rem;
+      color: #94a3b8;
+    }
+
+    @media (max-width: 800px) {
+      .summary-bar { grid-template-columns: repeat(2, 1fr); }
+      .missing-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>EASmartShopping</h1>
+<p class="subtitle">Test Coverage Report &nbsp;·&nbsp; May 2026 &nbsp;·&nbsp; deepeval + pytest</p>
+
+<!-- ════════ SUMMARY ════════ -->
+<div class="summary-bar">
+  <div class="summary-card sc-covered">
+    <div class="num">22</div>
+    <div class="label">Features Covered</div>
+  </div>
+  <div class="summary-card sc-partial">
+    <div class="num">1</div>
+    <div class="label">Partially Covered</div>
+  </div>
+  <div class="summary-card sc-missing">
+    <div class="num">1</div>
+    <div class="label">Features Missing Tests</div>
+  </div>
+  <div class="summary-card sc-files">
+    <div class="num">14</div>
+    <div class="label">Test Files</div>
+  </div>
+</div>
+
+<!-- ════════ FILE LEGEND ════════ -->
+<div class="section-label">Test Files</div>
+<div class="legend">
+  <div class="legend-title">Colour key</div>
+  <div class="legend-item"><span class="file-tag ft-intent">test_intent_detection.py</span> Pure unit tests — imports _detect_* functions directly, no server needed</div>
+  <div class="legend-item"><span class="file-tag ft-cart">test_chatbot_cart_ops.py</span> Cart add / update / remove / clear / awareness</div>
+  <div class="legend-item"><span class="file-tag ft-bundle">test_chatbot_bundle.py</span> Bundle generation, diversity, modification, dismiss</div>
+  <div class="legend-item"><span class="file-tag ft-rag">test_rag_retrieval.py</span> RAG contextual relevancy, faithfulness, result count</div>
+  <div class="legend-item"><span class="file-tag ft-conv">test_chatbot_conversational.py</span> Pronoun resolution, multi-turn, out-of-scope</div>
+  <div class="legend-item"><span class="file-tag ft-rec">test_chatbot_recommendations.py</span> Product recommendations, price specificity, no hallucination</div>
+  <div class="legend-item"><span class="file-tag ft-reorder">test_chatbot_reorder.py</span> Reorder last order, confirm, phrase variants</div>
+  <div class="legend-item"><span class="file-tag ft-compare">test_chatbot_comparison.py</span> Side-by-side comparison, completeness, accuracy</div>
+  <div style="width:100%;height:1px;background:#1e293b;margin:8px 0;"></div>
+  <div class="legend-title">tests/new/ &mdash; added this session</div>
+  <div class="legend-item"><span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span> Strong add overrides, _add_all_pattern, _extract_mentioned_products, qty delta, top-rated intent &mdash; <strong style="color:#4ade80">pure unit, no LLM</strong></div>
+  <div class="legend-item"><span class="file-tag ft-add-all">new/test_chatbot_add_all.py</span> Add all [category], two-turn browse&rarr;add-them-all &mdash; GEval for E2E quality checks</div>
+  <div class="legend-item"><span class="file-tag ft-spec">new/test_rag_spec_search.py</span> search_products_by_spec() unit tests + chatbot spec queries &mdash; mixed (unit + GEval)</div>
+  <div class="legend-item"><span class="file-tag ft-dismiss">new/test_chatbot_bundle_autodismiss.py</span> Bundle dismiss on browse / question / rejection &mdash; mostly _pending_bundle state assertions + 1 GEval</div>
+  <div class="legend-item"><span class="file-tag ft-toprated">new/test_top_rated.py</span> /api/products/top-rated API contract + chatbot queries &mdash; mixed (API assertions + GEval)</div>
+  <div class="legend-item"><span class="file-tag ft-api">new/test_api_products.py</span> Product detail, similar, enriched fields &mdash; <strong style="color:#4ade80">pure API assertions, no LLM</strong></div>
+</div>
+
+<!-- ════════ COVERAGE TABLE ════════ -->
+<div class="section-label">Feature Coverage Detail</div>
+<div class="coverage-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Feature</th>
+        <th style="width:10%">Status</th>
+        <th style="width:30%">Test Files &amp; Tests</th>
+        <th style="width:20%">Metrics Used</th>
+        <th style="width:18%">Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- ── Intent Detection ── -->
+      <tr>
+        <td>
+          <div class="feature-name">Add to Cart — intent detection</div>
+          <div class="feature-sub">_detect_add_to_cart()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span><br/>
+          <span class="test-count">11 positive phrases · 7 negative phrases</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span></td>
+        <td>No LLM judge needed — pure Python</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Update Quantity — absolute set</div>
+          <div class="feature-sub">_detect_update_quantity() — "change qty to 3"</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">6 positive · 3 negative · 1 E2E test</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Remove from Cart — intent detection</div>
+          <div class="feature-sub">_detect_remove_from_cart()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">5 positive · 3 negative · 2 E2E tests</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval</span></td>
+        <td>Includes graceful not-found test</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Clear Cart</div>
+          <div class="feature-sub">_detect_clear_cart() + cart_clear()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">6 positive · 3 negative · 3 phrase variants E2E</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval</span></td>
+        <td>Cart emptiness asserted after clear</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Cart Awareness</div>
+          <div class="feature-sub">"what's in my cart?" context injection</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">2 tests — empty cart · non-empty cart</span>
+        </td>
+        <td><span class="metric-tag geval">GEval</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">SSE cart_updated flag</div>
+          <div class="feature-sub">done event → cart_updated=true</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">test_cart_updated_flag_is_set</span>
+        </td>
+        <td><span class="metric-tag unit">Assertion on SSE done</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle Request — intent detection</div>
+          <div class="feature-sub">_detect_bundle_request()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span><br/>
+          <span class="test-count">11 positive · 4 negative</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle Generation — relevance &amp; diversity</div>
+          <div class="feature-sub">RAG + category whitelist filter</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-bundle">test_chatbot_bundle.py</span><br/>
+          <span class="test-count">3 category variants · min/max items · diversity GEval</span>
+        </td>
+        <td><span class="metric-tag answer">AnswerRelevancy</span> <span class="metric-tag geval">GEval Diversity</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle — no cross-category noise</div>
+          <div class="feature-sub">Gaming PC should not contain Sports items</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-bundle">test_chatbot_bundle.py</span><br/>
+          <span class="test-count">test_gaming_pc_bundle_no_sports_items</span>
+        </td>
+        <td><span class="metric-tag unit">Keyword assertion on bundle names</span></td>
+        <td>Validates the category whitelist fix</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle Modification — remove item</div>
+          <div class="feature-sub">"I don't want the X" edits pending bundle</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-bundle">test_chatbot_bundle.py</span><br/>
+          <span class="test-count">test_remove_item_from_bundle_via_chat</span>
+        </td>
+        <td><span class="metric-tag geval">GEval</span></td>
+        <td>Multi-turn: generate → remove</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle Confirm — intent detection</div>
+          <div class="feature-sub">_detect_bundle_confirm()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span><br/>
+          <span class="test-count">13 positive · 4 negative</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle superseded by new request</div>
+          <div class="feature-sub">New bundle replaces old pending bundle</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-bundle">test_chatbot_bundle.py</span><br/>
+          <span class="test-count">test_bundle_superseded_on_new_request</span>
+        </td>
+        <td><span class="metric-tag unit">Keyword assertion on SSE bundle_items</span></td>
+        <td>Sports → PC switch tested</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">RAG Retrieval — contextual relevancy</div>
+          <div class="feature-sub">search_products_rag() top-k results</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-rag">test_rag_retrieval.py</span><br/>
+          <span class="test-count">5 category queries · no duplicates · result count</span>
+        </td>
+        <td><span class="metric-tag context">ContextualRelevancy</span></td>
+        <td>Threshold 0.3 (local model noise)</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">RAG Faithfulness</div>
+          <div class="feature-sub">Response only contains retrieved facts</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-rag">test_rag_retrieval.py</span><br/>
+          <span class="test-count">3 product description queries</span>
+        </td>
+        <td><span class="metric-tag geval">GEval Faithfulness</span></td>
+        <td>GEval used (not FaithfulnessMetric — local model doesn't produce structured JSON)</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Pronoun Resolution</div>
+          <div class="feature-sub">"it" / "add it" after product discussion</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-conv">test_chatbot_conversational.py</span><br/>
+          <span class="test-count">xfail: "how much is it?" · "add it to my cart"</span>
+        </td>
+        <td><span class="metric-tag geval">GEval</span></td>
+        <td>xfail on short pronouns (known gemma4 limitation)</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Product Recommendations</div>
+          <div class="feature-sub">Category relevance, name + price in response</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-rec">test_chatbot_recommendations.py</span><br/>
+          <span class="test-count">5 queries · 3 price specificity · 1 no-hallucination</span>
+        </td>
+        <td><span class="metric-tag answer">AnswerRelevancy</span> <span class="metric-tag geval">GEval Specificity</span></td>
+        <td></td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Reorder Last Order</div>
+          <div class="feature-sub">_detect_reorder() + order history lookup</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span>
+          <span class="file-tag ft-reorder">test_chatbot_reorder.py</span><br/>
+          <span class="test-count">11 positive · 2 negative · no-history · confirm · 4 phrase variants</span>
+        </td>
+        <td><span class="metric-tag geval">GEval</span></td>
+        <td>Places real test order via API</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Product Comparison</div>
+          <div class="feature-sub">_detect_comparison() + side-by-side LLM output</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent">test_intent_detection.py</span>
+          <span class="file-tag ft-compare">test_chatbot_comparison.py</span><br/>
+          <span class="test-count">4 positive · 4 negative · relevance · completeness</span>
+        </td>
+        <td><span class="metric-tag answer">AnswerRelevancy</span> <span class="metric-tag geval">GEval Completeness</span></td>
+        <td></td>
+      </tr>
+
+      <!-- ── PARTIAL ── -->
+      <tr>
+        <td>
+          <div class="feature-name">Update Quantity — delta (+N)</div>
+          <div class="feature-sub">"add 2 more", "add another one" — is_delta=True</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span><br/>
+          <span class="test-count">TestDetectUpdateQuantityDelta — 13 delta · 7 absolute · 5 negative · full 3-tuple unpacking</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion — no LLM</span></td>
+        <td>Pure Python; is_delta branch fully validated</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Bundle auto-dismiss</div>
+          <div class="feature-sub">Bundle clears on browse / question / rejection / new add</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-bundle">test_chatbot_bundle.py</span>
+          <span class="file-tag ft-dismiss">new/test_chatbot_bundle_autodismiss.py</span><br/>
+          <span class="test-count">TestBundleAutoDismiss — browse · question · 7 rejection phrases · new add · confirm guard · stale-confirm guard</span>
+        </td>
+        <td><span class="metric-tag unit">_pending_bundle state assertion</span> <span class="metric-tag geval">GEval (1 test)</span></td>
+        <td>6 of 7 tests are plain assertions; 1 GEval for stale-confirm quality</td>
+      </tr>
+
+      <tr style="background: #130c00;">
+        <td>
+          <div class="feature-name">Add with options → option picker UI</div>
+          <div class="feature-sub">pending_options in SSE done event</div>
+        </td>
+        <td><span class="status-badge s-partial">⚠ Partial</span></td>
+        <td>
+          <span class="file-tag ft-cart">test_chatbot_cart_ops.py</span><br/>
+          <span class="test-count">Option prompt text tested; pending_options list not asserted in SSE done</span>
+        </td>
+        <td><span class="metric-tag geval">GEval</span></td>
+        <td>Frontend OptionPickerCard receives pending_options — not validated</td>
+      </tr>
+
+      <!-- ── MISSING ── -->
+      <tr>
+        <td>
+          <div class="feature-name">Add All [Category]</div>
+          <div class="feature-sub">_add_all_pattern · "add all tops" · multi-product pending</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span>
+          <span class="file-tag ft-add-all">new/test_chatbot_add_all.py</span><br/>
+          <span class="test-count">TestAddAllPattern — 10 positive · 6 negative · TestAddAllCategory — 3 E2E tests</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval (1 E2E test)</span></td>
+        <td>Regex isolated; E2E verifies multi-product queuing</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">_extract_mentioned_products()</div>
+          <div class="feature-sub">Parses bold names from last AI reply for "add them all"</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span>
+          <span class="file-tag ft-add-all">new/test_chatbot_add_all.py</span><br/>
+          <span class="test-count">TestExtractMentionedProducts — 7 unit cases · TestAddThemAll — 2-turn E2E</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval (E2E)</span></td>
+        <td>No LLM for unit; GEval for chatbot response quality</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Strong add-intent overrides browse guard</div>
+          <div class="feature-sub">"show me tops I want to add to cart" → add detected</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span>
+          <span class="file-tag ft-add-all">new/test_chatbot_add_all.py</span><br/>
+          <span class="test-count">TestStrongAddOverrides — 15 positive · 6 negative · test_strong_add_override_with_browse_prefix E2E</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval (E2E)</span></td>
+        <td>No LLM for unit tests</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Spec / material SQL fallback</div>
+          <div class="feature-sub">search_products_by_spec() · AND keyword logic · case-insensitive</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-spec">new/test_rag_spec_search.py</span><br/>
+          <span class="test-count">TestSpecSearchCrud — 6 unit tests · TestSpecChatbot — 4 integration tests</span>
+        </td>
+        <td><span class="metric-tag unit">Unit assertion</span> <span class="metric-tag geval">GEval (1 chatbot test)</span></td>
+        <td>crud tests need no server; chatbot tests need backend + Ollama</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Top-Rated Products endpoint</div>
+          <div class="feature-sub">GET /api/products/top-rated + _detect_top_rated_query()</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span>
+          <span class="file-tag ft-toprated">new/test_top_rated.py</span><br/>
+          <span class="test-count">TestDetectTopRatedQuery — 14+7 unit assertions · TestTopRatedAPI — 8 API tests · TestTopRatedChatbot — 4 tests</span>
+        </td>
+        <td><span class="metric-tag unit">Unit + API assertions</span> <span class="metric-tag geval">GEval (2 chatbot tests)</span></td>
+        <td>API contract tests need no LLM; chatbot tests use GEval for quality</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Product Detail page API</div>
+          <div class="feature-sub">GET /api/products/{id} · similar products</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-api">new/test_api_products.py</span><br/>
+          <span class="test-count">TestProductDetailAPI — 8 tests · TestSimilarProductsAPI — 5 tests</span>
+        </td>
+        <td><span class="metric-tag unit">API assertions — no LLM</span></td>
+        <td>404, id match, price/stock/options; similar excludes self; no duplicates</td>
+      </tr>
+
+      <tr>
+        <td>
+          <div class="feature-name">Rating &amp; review_count in product data</div>
+          <div class="feature-sub">rating · review_count · specs (dict) · manufacturer (str)</div>
+        </td>
+        <td><span class="status-badge s-covered">✓ Covered</span></td>
+        <td>
+          <span class="file-tag ft-api">new/test_api_products.py</span><br/>
+          <span class="test-count">TestProductEnrichedFields — 5 tests across 10 sampled products</span>
+        </td>
+        <td><span class="metric-tag unit">API assertions — no LLM</span></td>
+        <td>0–5 range, non-negative, dict type, str type; at least 5 enriched products asserted</td>
+      </tr>
+
+      <tr style="background: #0d0406;">
+        <td>
+          <div class="feature-name">Cart real-time update via cart-updated event</div>
+          <div class="feature-sub">window.dispatchEvent → cart page reloads</div>
+        </td>
+        <td><span class="status-badge s-missing">✗ Missing</span></td>
+        <td><span style="color:#64748b;font-size:0.72rem;">— no tests —</span></td>
+        <td>—</td>
+        <td>Frontend-only behaviour; requires Playwright / browser test</td>
+      </tr>
+
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════ IMPLEMENTED CARDS ════════ -->
+<div class="section-label">Newly Implemented Tests (tests/new/)</div>
+<div class="missing-grid">
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Add All [Category] + _extract_mentioned_products</h3>
+    <p>Covered by <code>new/test_intent_detection_new.py</code> (TestAddAllPattern — 16 cases, TestExtractMentionedProducts — 7 edge cases) and <code>new/test_chatbot_add_all.py</code> (TestAddAllCategory + TestAddThemAll — E2E two-turn flow).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      Unit tests: no LLM. E2E tests: GEval(<code>MultiProductAdd</code>, <code>AddThemAllResponse</code>) for chatbot response quality only.
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Strong Add-Intent Overrides Browse Guard</h3>
+    <p>Covered by <code>new/test_intent_detection_new.py</code> (TestStrongAddOverrides — 15 positive hybrid browse+add phrases, 6 pure-browse negatives) and <code>new/test_chatbot_add_all.py</code> (<code>test_strong_add_override_with_browse_prefix</code>).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      Unit tests: no LLM. One E2E test uses GEval(<code>StrongAddOverride</code>).
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Quantity Delta (+N) — is_delta return value</h3>
+    <p>Covered by <code>new/test_intent_detection_new.py</code> (TestDetectUpdateQuantityDelta — 13 delta cases, 7 absolute cases, 5 negatives). Full 3-tuple unpacking verified throughout.</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      No LLM — all pure Python unit assertions. 90 unit tests pass in 0.34s.
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Spec / Material SQL Fallback</h3>
+    <p>Covered by <code>new/test_rag_spec_search.py</code> (TestSpecSearchCrud — 6 unit tests for AND logic, case-insensitivity, multi-keyword strictness; TestSpecChatbot — 4 integration tests).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      crud unit tests: no LLM. One chatbot integration test uses GEval(<code>SpecQueryRelevance</code>); 3 others assert non-empty response only.
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Bundle Auto-Dismiss</h3>
+    <p>Covered by <code>new/test_chatbot_bundle_autodismiss.py</code> (TestBundleAutoDismiss — browse dismiss, question dismiss, 7 rejection phrase variants, new-add dismiss, confirm guard, stale-confirm guard).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      6 of 7 tests assert <code>_pending_bundle</code> state directly — no LLM. Only <code>test_bundle_not_readded_after_dismiss_and_confirm</code> uses GEval(<code>NoBundleAfterDismiss</code>).
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Top-Rated Products</h3>
+    <p>Covered by <code>new/test_intent_detection_new.py</code> (TestDetectTopRatedQuery — 14+7 cases with hint extraction) and <code>new/test_top_rated.py</code> (TestTopRatedAPI — 8 contract tests; TestTopRatedChatbot — 4 tests).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      Intent unit tests + API contract tests: no LLM. 2 chatbot tests use GEval(<code>TopRatedRelevance</code>, <code>CategoryTopRated</code>).
+    </div>
+  </div>
+
+  <div class="missing-card" style="background:#081a12;border-color:#166534;">
+    <h3 style="color:#4ade80;">✓ Product Detail API &amp; Enriched Fields</h3>
+    <p>Covered by <code>new/test_api_products.py</code> (TestProductDetailAPI — 8 tests; TestProductEnrichedFields — 5 tests sampling 10 products; TestSimilarProductsAPI — 5 tests).</p>
+    <div class="suggested-test" style="background:#0d2119;border-color:#166534;color:#86efac;">
+      <div class="st-label" style="color:#16a34a;">LLM Judge usage</div>
+      No LLM anywhere in this file — all structural HTTP / field-type assertions.
+    </div>
+  </div>
+
+  <div class="missing-card">
+    <h3>🟡 Cart Real-Time Update (Frontend)</h3>
+    <p>The <code>cart-updated</code> custom event dispatched by ChatWidget is browser-only behaviour. Cannot be tested with the current pytest/deepeval setup.</p>
+    <div class="suggested-test">
+      <div class="st-label">Still missing — Playwright E2E</div>
+      Open /cart, trigger an add-to-cart via the chat API, assert the cart page updates without a full page reload (DOM mutation on cart item count).
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════ COVERAGE BY FILE ════════ -->
+<div class="section-label">Tests by File</div>
+<div class="coverage-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Folder</th>
+        <th>Type</th>
+        <th>Test Classes</th>
+        <th>Tests</th>
+        <th>LLM Judge</th>
+        <th>Needs Server</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="file-tag ft-intent">test_intent_detection.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Unit</td>
+        <td>TestDetectAddToCart, TestDetectUpdateQuantity, TestDetectRemoveFromCart, TestDetectClearCart, TestDetectBundleRequest, TestDetectBundleConfirm, TestDetectReorder, TestDetectComparison</td>
+        <td class="test-count">~80</td>
+        <td style="color:#f87171">No</td>
+        <td style="color:#4ade80">No</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-cart">test_chatbot_cart_ops.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestAddToCart, TestUpdateCartQuantity, TestRemoveFromCart, TestClearCart, TestCartAwareness</td>
+        <td class="test-count">~12</td>
+        <td style="color:#fb923c">GEval</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-bundle">test_chatbot_bundle.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestBundleGeneration, TestBundleModification</td>
+        <td class="test-count">~8</td>
+        <td style="color:#fb923c">GEval, AnswerRelevancy</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-rag">test_rag_retrieval.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestRAGRetrieval, TestRAGFaithfulness</td>
+        <td class="test-count">~10</td>
+        <td style="color:#fb923c">GEval, ContextualRelevancy</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-conv">test_chatbot_conversational.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestConversationalContext</td>
+        <td class="test-count">~5 (1 xfail)</td>
+        <td style="color:#fb923c">GEval</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-rec">test_chatbot_recommendations.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestProductRecommendations</td>
+        <td class="test-count">~9</td>
+        <td style="color:#fb923c">GEval, AnswerRelevancy</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-reorder">test_chatbot_reorder.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestReorderFeature</td>
+        <td class="test-count">~6</td>
+        <td style="color:#fb923c">GEval</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr>
+        <td><span class="file-tag ft-compare">test_chatbot_comparison.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/</td>
+        <td>Integration</td>
+        <td>TestProductComparison</td>
+        <td class="test-count">~5</td>
+        <td style="color:#fb923c">GEval, AnswerRelevancy</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <!-- ── tests/new/ ── -->
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-intent-new">new/test_intent_detection_new.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>Unit</td>
+        <td>TestStrongAddOverrides, TestAddAllPattern, TestExtractMentionedProducts, TestDetectUpdateQuantityDelta, TestDetectTopRatedQuery</td>
+        <td class="test-count">90 ✓ verified</td>
+        <td style="color:#4ade80">No</td>
+        <td style="color:#4ade80">No</td>
+      </tr>
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-add-all">new/test_chatbot_add_all.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>Integration</td>
+        <td>TestAddAllCategory, TestAddThemAll</td>
+        <td class="test-count">6</td>
+        <td style="color:#fb923c">GEval (3 tests)</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-spec">new/test_rag_spec_search.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>Unit + Integration</td>
+        <td>TestSpecSearchCrud, TestSpecChatbot</td>
+        <td class="test-count">10</td>
+        <td style="color:#fb923c">GEval (1 test)</td>
+        <td style="color:#fb923c">Mixed</td>
+      </tr>
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-dismiss">new/test_chatbot_bundle_autodismiss.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>Integration</td>
+        <td>TestBundleAutoDismiss</td>
+        <td class="test-count">7</td>
+        <td style="color:#fb923c">GEval (1 test)</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-toprated">new/test_top_rated.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>API + Integration</td>
+        <td>TestTopRatedAPI, TestTopRatedChatbot</td>
+        <td class="test-count">11</td>
+        <td style="color:#fb923c">GEval (2 tests)</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+      <tr style="background:#0a1020;">
+        <td><span class="file-tag ft-api">new/test_api_products.py</span></td>
+        <td style="color:#64748b;font-size:0.72rem;">tests/new/</td>
+        <td>API</td>
+        <td>TestProductDetailAPI, TestProductEnrichedFields, TestSimilarProductsAPI</td>
+        <td class="test-count">18</td>
+        <td style="color:#4ade80">No</td>
+        <td style="color:#f87171">Yes</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
