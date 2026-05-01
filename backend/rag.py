@@ -1288,10 +1288,21 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
                     bundle_category_whitelist = cats
                     break
 
-            # Use RAG to find the most relevant products for this bundle query
-            bundle_candidates = search_products_rag(query, k=15)
-            bundle_candidates = [get_product(c["product_id"]) for c in bundle_candidates]
-            bundle_candidates = [p for p in bundle_candidates if p]  # filter None
+            # If we have no topic signal at all, refuse to build a random bundle
+            if not bundle_category_whitelist:
+                cart_action_note = (
+                    "BUNDLE REQUEST: The customer's request is too vague or does not describe "
+                    "a recognisable bundle theme. Do NOT generate a bundle. Instead, ask the "
+                    "customer what kind of bundle they have in mind — for example: gaming PC, "
+                    "home office setup, workout kit, hiking gear, travel bag, or kitchen bundle."
+                )
+                # Skip the rest of the bundle assembly
+                bundle_candidates = []
+            else:
+                # Use RAG to find the most relevant products for this bundle query
+                bundle_candidates = search_products_rag(query, k=15)
+                bundle_candidates = [get_product(c["product_id"]) for c in bundle_candidates]
+                bundle_candidates = [p for p in bundle_candidates if p]  # filter None
 
             # Apply category whitelist when we have a strong category signal
             if bundle_category_whitelist:
@@ -1304,61 +1315,67 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
                     bundle_candidates = filtered
 
         # Apply budget filter (single item shouldn't exceed 60% of budget)
-        if budget:
+        if budget and bundle_candidates:
             bundle_candidates = [p for p in bundle_candidates if p['price'] <= budget * 0.6]
 
-        # Deduplicate by product type (first 2 words of name, lowercased).
-        # This lets multiple "Computer Components" items (CPU, GPU, RAM, SSD…) all
-        # appear together while still preventing near-duplicate products.
-        _stop = {"the", "a", "an", "for", "with", "and", "or", "of"}
-        def _type_key(name: str) -> str:
-            words = [w for w in re.sub(r"[^a-z0-9 ]", "", name.lower()).split() if w not in _stop]
-            return " ".join(words[:2])
-
-        seen_types: dict[str, dict] = {}
-        for p in bundle_candidates:
-            key = _type_key(p['name'])
-            if key not in seen_types or p['price'] < seen_types[key]['price']:
-                seen_types[key] = p
-
-        # Build selected bundle (max 6 items, in RAG relevance order)
-        seen_ids = {p['id'] for p in seen_types.values()}
-        selected = [p for p in bundle_candidates if p['id'] in seen_ids][:6]
-
-        if selected:
-            # Store as pending bundle for this session (include image for frontend UI)
-            _pending_bundle[session_id] = [
-                {
-                    "product_id": p['id'],
-                    "name": p['name'],
-                    "price": p['price'],
-                    "image": p.get('image_url') or "",
-                    "options": p.get('options') or [],
-                    "category": p['category'],
-                }
-                for p in selected
-            ]
-
-            items_text = "\n".join(
-                f"  • {p['name']} ({p['category']}) — ${p['price']:.2f}"
-                + (f" [needs: {', '.join(o['name'] for o in (p.get('options') or []))}]" if p.get('options') else "")
-                for p in selected
-            )
-            total = sum(p['price'] for p in selected)
-            budget_note = f"Budget: ${budget:.0f}" if budget else ""
-            cart_action_note = (
-                f"BUNDLE READY: Python has pre-selected these {len(selected)} items for the bundle "
-                f"(stored and ready to add to cart when user confirms).\n"
-                f"{budget_note}\n"
-                f"Bundle items:\n{items_text}\n"
-                f"Bundle total: ${total:.2f}\n"
-                f"Present these items as a simple bullet list with names and prices — "
-                f"DO NOT generate a comparison table. "
-                f"Tell the customer an interactive card will appear below where they can select options (size, brand, etc.) and add all items to cart with one click. "
-                f"Keep your response short and friendly."
-            )
+        if not bundle_candidates:
+            # Either no topic was recognised (clarification note already set above)
+            # or budget filtered everything out — don't overwrite the note if already set.
+            if not cart_action_note:
+                cart_action_note = "BUNDLE REQUEST: No suitable products found for this bundle. Ask the customer to clarify what they're looking for."
         else:
-            cart_action_note = "BUNDLE REQUEST: No suitable products found for this bundle. Ask the customer to clarify what they're looking for."
+            # Deduplicate by product type (first 2 words of name, lowercased).
+            # This lets multiple "Computer Components" items (CPU, GPU, RAM, SSD…) all
+            # appear together while still preventing near-duplicate products.
+            _stop = {"the", "a", "an", "for", "with", "and", "or", "of"}
+            def _type_key(name: str) -> str:
+                words = [w for w in re.sub(r"[^a-z0-9 ]", "", name.lower()).split() if w not in _stop]
+                return " ".join(words[:2])
+
+            seen_types: dict[str, dict] = {}
+            for p in bundle_candidates:
+                key = _type_key(p['name'])
+                if key not in seen_types or p['price'] < seen_types[key]['price']:
+                    seen_types[key] = p
+
+            # Build selected bundle (max 6 items, in RAG relevance order)
+            seen_ids = {p['id'] for p in seen_types.values()}
+            selected = [p for p in bundle_candidates if p['id'] in seen_ids][:6]
+
+            if selected:
+                # Store as pending bundle for this session (include image for frontend UI)
+                _pending_bundle[session_id] = [
+                    {
+                        "product_id": p['id'],
+                        "name": p['name'],
+                        "price": p['price'],
+                        "image": p.get('image_url') or "",
+                        "options": p.get('options') or [],
+                        "category": p['category'],
+                    }
+                    for p in selected
+                ]
+
+                items_text = "\n".join(
+                    f"  • {p['name']} ({p['category']}) — ${p['price']:.2f}"
+                    + (f" [needs: {', '.join(o['name'] for o in (p.get('options') or []))}]" if p.get('options') else "")
+                    for p in selected
+                )
+                total = sum(p['price'] for p in selected)
+                budget_note = f"Budget: ${budget:.0f}" if budget else ""
+                cart_action_note = (
+                    f"BUNDLE READY: Python has pre-selected these {len(selected)} items for the bundle "
+                    f"(stored and ready to add to cart when user confirms).\n"
+                    f"{budget_note}\n"
+                    f"Bundle items:\n{items_text}\n"
+                    f"Bundle total: ${total:.2f}\n"
+                    f"Present these items as a simple bullet list with names and prices — "
+                    f"DO NOT generate a comparison table. "
+                    f"Tell the customer an interactive card will appear below where they can select options (size, brand, etc.) and add all items to cart with one click. "
+                    f"Keep your response short and friendly."
+                )
+            else:
+                cart_action_note = "BUNDLE REQUEST: No suitable products found for this bundle. Ask the customer to clarify what they're looking for."
 
 
     # ── RAG product search (context-augmented for vague follow-ups) ───────────
@@ -1495,13 +1512,23 @@ def generate_chat_response(query: str, session_id: str) -> dict:
     # queries have the right product grounding in conversation history.
     _conversation_history.setdefault(session_id, []).append({"human": user_content, "ai": response_text})
 
+    # For bundles, expose all bundle items; otherwise the top RAG hits (max 3)
+    pending_bundle = _pending_bundle.get(session_id) or []
+    if pending_bundle:
+        mentioned = [
+            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
+            for p in pending_bundle
+        ]
+    else:
+        mentioned = [
+            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
+            for p in relevant_products[:3]
+        ]
+
     return {
         "response": response_text,
         "cart_updated": cart_updated,
-        "products_mentioned": [
-            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
-            for p in relevant_products[:3]
-        ],
+        "products_mentioned": mentioned,
     }
 
 
@@ -1537,13 +1564,27 @@ async def stream_chat_response(query: str, session_id: str):
     # If products are waiting on option selection, send them for interactive UI
     pending_options = _pending_add.get(session_id) or []
 
+    # For bundles, expose all bundle items; otherwise the top RAG hits (max 3)
+    if pending:
+        mentioned = [
+            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
+            for p in pending
+        ]
+    elif pending_options:
+        mentioned = [
+            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
+            for p in pending_options
+        ]
+    else:
+        mentioned = [
+            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
+            for p in relevant_products[:3]
+        ]
+
     yield {
         "type": "done",
         "cart_updated": cart_updated,
-        "products_mentioned": [
-            {"id": p["product_id"], "name": p["name"], "price": p["price"]}
-            for p in relevant_products[:3]
-        ],
+        "products_mentioned": mentioned,
         "bundle_items": pending if pending else None,
         "pending_options": pending_options if pending_options else None,
     }
