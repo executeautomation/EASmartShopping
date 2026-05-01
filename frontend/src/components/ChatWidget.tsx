@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { getSessionId, addToCart, addBundleToCart, clearPendingOptions, type BundleItem } from "@/lib/api";
+import { getSessionId, addToCart, addBundleToCart, clearPendingOptions, clearChatSession, type BundleItem } from "@/lib/api";
 
 // A pending option item — same shape as BundleItem but with quantity + already_selected
 interface PendingItem {
@@ -785,7 +785,11 @@ export default function ChatWidget() {
         </div>
         <div style={{ display: "flex", gap: "0.4rem" }}>
           <button
-            onClick={() => { setMessages([{ id: "init", role: "assistant", content: "Chat cleared! How can I help you?" }]); setActiveBundleIdx(-1); }}
+            onClick={async () => {
+              await clearChatSession();
+              setMessages([{ id: "init", role: "assistant", content: "Chat cleared! How can I help you?" }]);
+              setActiveBundleIdx(-1);
+            }}
             title="Clear chat"
             style={{
               background: "rgba(255,255,255,0.15)", border: "none", color: "white",

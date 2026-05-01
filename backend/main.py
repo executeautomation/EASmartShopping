@@ -200,6 +200,17 @@ def clear_pending(session_id: str):
     return {"cleared": True}
 
 
+@app.delete("/api/chat/{session_id}/session")
+def clear_chat_session(session_id: str):
+    """Reset ALL server-side state for this session: conversation history, pending add,
+    and pending bundle. Call this when the user starts a fresh conversation."""
+    from rag import _conversation_history, _pending_add, _pending_bundle
+    _conversation_history.pop(session_id, None)
+    _pending_add.pop(session_id, None)
+    _pending_bundle.pop(session_id, None)
+    return {"cleared": True}
+
+
 # ─── Orders ─────────────────────────────────────────────────
 
 @app.post("/api/orders", response_model=Order)

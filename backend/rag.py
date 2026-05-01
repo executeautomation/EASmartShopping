@@ -720,6 +720,10 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
     cart_action_note = ""
 
     _is_qty_update, _new_qty, _is_qty_delta = _detect_update_quantity(query_lower)
+    # Detect top-rated intent early so it can guard the add-to-cart / pending-add
+    # branches below — otherwise "get me all shirts with top rated" fires add-to-cart
+    # because "get me" is in the add phrases list.
+    _is_top_rated, _top_rated_hint = _detect_top_rated_query(query_lower)
 
     # ── Dismiss stale pending bundle ──────────────────────────────────────────
     # If the user starts a completely new request (new bundle, new add, browse,
@@ -868,7 +872,7 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         if not removed and not cart_action_note:
             cart_action_note = "CART ACTION FAILED: Could not find that item in the cart."
 
-    elif _detect_add_to_cart(query_lower):
+    elif _detect_add_to_cart(query_lower) and not _is_top_rated:
         from crud import get_product
         sub_items = _split_multi_add(query_lower)
         action_notes = []
@@ -905,7 +909,20 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
             else:
                 add_candidates = search_products_rag(rag_query, k=3)
                 add_candidates = _rerank_by_name_match(sub, add_candidates)
-                candidates_to_process = [add_candidates[0]] if add_candidates else []
+                # Only apply the name-match guard when the query was NOT contextually
+                # augmented (i.e. the user typed an explicit product name).
+                # For pronoun/vague follow-ups like "add one for me" the RAG query was
+                # already enriched with the prior AI response, so rag_query != sub.
+                _is_contextual = (rag_query != sub)
+                _best_score = 0
+                if add_candidates and not _is_contextual:
+                    _q_words = set(re.sub(r'[^a-z0-9\s]', '', sub.lower()).split())
+                    _n_words = set(re.sub(r'[^a-z0-9\s]', '', add_candidates[0]["name"].lower()).split())
+                    _best_score = len(_q_words & _n_words)
+                candidates_to_process = (
+                    [add_candidates[0]] if add_candidates and (_is_contextual or _best_score > 0)
+                    else []
+                )
 
             if not add_candidates:
                 action_notes.append(f"CART ACTION FAILED: No matching product found for '{sub}'.")
@@ -963,7 +980,7 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         cart_action_note = " | ".join(action_notes)
 
     # ── Resolve pending add: user replied with missing options ────────────────
-    elif session_id in _pending_add and _pending_add[session_id]:
+    elif not _is_top_rated and session_id in _pending_add and _pending_add[session_id]:
         action_notes = []
         any_added = False
         remaining_pending = []
@@ -1074,8 +1091,19 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
 
         if compare_parts:
             cart_action_note = (
-                "COMPARISON REQUEST: Generate a clear side-by-side comparison of these products. "
-                "Include price, key features, pros/cons, and a recommendation. Use a simple comparison format.\n\n"
+                "COMPARISON REQUEST: You MUST format your entire comparison as a single markdown pipe table. "
+                "Use this exact structure:\n"
+                "| Feature | [Product A Name] | [Product B Name] |\n"
+                "|---|---|---|\n"
+                "| Price | ... | ... |\n"
+                "| Key Features | ... | ... |\n"
+                "| Pros | ... | ... |\n"
+                "| Cons | ... | ... |\n"
+                "| Best For | ... | ... |\n"
+                "| Recommendation | ... | ... |\n\n"
+                "CRITICAL: Use | pipe characters, include a header row and a separator row of --- dashes. "
+                "Do NOT use bullet points or prose for the comparison — only the markdown table. "
+                "After the table, add one short concluding sentence.\n\n"
                 + "\n\n".join(compare_parts)
             )
         else:
@@ -1130,7 +1158,7 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
                 cart_action_note = f"REORDER INFO: Customer's order history:\n{history_text}\nAsk which order they'd like to reorder, or offer to reorder the most recent one."
 
     # ── Top-rated / best-reviewed product query ───────────────────────────────
-    _is_top_rated, _top_rated_hint = _detect_top_rated_query(query_lower)
+    # (_is_top_rated and _top_rated_hint were computed at the top of this function)
     if not cart_action_note and _is_top_rated:
         from crud import get_top_rated_products
 
@@ -1140,8 +1168,21 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
             "boot": "Sports", "boots": "Sports", "running": "Sports", "trainer": "Sports",
             "trainers": "Sports", "electronic": "Electronics", "electronics": "Electronics",
             "headphone": "Electronics", "speaker": "Electronics", "keyboard": "Electronics",
+            "ram": "Electronics", "memory": "Electronics", "ddr4": "Electronics", "ddr5": "Electronics",
+            "ssd": "Electronics", "hdd": "Electronics", "hard drive": "Electronics", "hard disk": "Electronics",
+            "nvme": "Electronics", "pcie": "Electronics", "storage": "Electronics",
+            "psu": "Electronics", "power supply": "Electronics", "motherboard": "Electronics",
+            "mobo": "Electronics", "power bank": "Electronics", "powerbank": "Electronics",
             "bag": "Bags", "bags": "Bags", "backpack": "Bags",
             "clothing": "Clothing", "clothes": "Clothing", "hoodie": "Clothing",
+            "shirt": "Clothing", "shirts": "Clothing", "t-shirt": "Clothing",
+            "t-shirts": "Clothing", "tshirt": "Clothing", "tshirts": "Clothing",
+            "top": "Clothing", "tops": "Clothing", "blouse": "Clothing",
+            "bottom": "Clothing", "bottoms": "Clothing", "pants": "Clothing",
+            "trousers": "Clothing", "shorts": "Clothing", "jeans": "Clothing",
+            "leggings": "Clothing", "skirt": "Clothing", "skirts": "Clothing",
+            "dress": "Clothing", "dresses": "Clothing", "jacket": "Clothing",
+            "jackets": "Clothing", "sweater": "Clothing", "sweaters": "Clothing",
             "wellness": "Wellness", "kitchen": "Home & Kitchen",
         }
         category_filter = None
@@ -1179,44 +1220,88 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         budget_match = re.search(r'\$?(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:budget|dollars?|usd)?', query_lower)
         budget = float(budget_match.group(1).replace(',', '')) if budget_match else None
 
-        # Infer allowed categories from the bundle query so we don't mix e.g. shoes into
-        # a "gaming PC" bundle just because their embeddings score well on "performance".
-        # Map of keyword → whitelist of category names (case-insensitive substring match).
-        _BUNDLE_CATEGORY_HINTS: list[tuple[list[str], list[str]]] = [
-            (["gaming", "pc", "computer", "desk setup", "home office", "office setup",
-              "work from home", "wfh setup", "workstation"],
-             ["electronics", "tech", "computer", "accessories", "audio"]),
-            (["workout", "fitness", "gym", "sports kit", "running kit", "exercise"],
-             ["sports", "fitness", "clothing", "outdoor"]),
-            (["camping", "hiking", "outdoor", "adventure"],
-             ["outdoor", "sports", "camping", "hiking"]),
-            (["travel", "traveller", "traveler"],
-             ["travel", "bags", "accessories", "outdoor"]),
-            (["kitchen", "cooking", "baking", "chef"],
-             ["kitchen", "home", "food"]),
-            (["yoga", "pilates", "meditation"],
-             ["fitness", "sports", "clothing", "wellness"]),
+        # ── Targeted component sub-searches for well-known bundle types ──────
+        # For bundles like "gaming PC" the generic RAG query returns peripherals
+        # (headphones, keyboard) instead of actual components (RAM, SSD, PSU).
+        # We fix this by running one targeted search per component slot.
+        _BUNDLE_COMPONENT_QUERIES: list[tuple[list[str], list[str]]] = [
+            (
+                ["gaming pc", "build a pc", "build me a pc", "gaming computer",
+                 "gaming build", "gaming rig", "pc build", "desktop build",
+                 "pc setup", "gaming setup"],
+                ["motherboard Intel AMD", "DDR5 DDR4 RAM memory", "NVMe SSD storage",
+                 "power supply PSU modular", "gaming keyboard mechanical",
+                 "gaming mouse wireless"],
+            ),
+            (
+                ["home office", "office setup", "work from home", "wfh setup", "workstation"],
+                ["laptop stand ergonomic", "mechanical keyboard", "wireless mouse",
+                 "noise cancelling headphones", "webcam monitor"],
+            ),
+            (
+                ["workout bundle", "gym kit", "fitness bundle", "exercise kit", "sports bundle"],
+                ["resistance bands workout", "yoga mat", "running shoes sports",
+                 "compression tights", "sports water bottle"],
+            ),
         ]
-        bundle_category_whitelist: list[str] | None = None
-        for keywords, cats in _BUNDLE_CATEGORY_HINTS:
-            if any(kw in query_lower for kw in keywords):
-                bundle_category_whitelist = cats
+
+        targeted_component_queries: list[str] | None = None
+        for trigger_phrases, component_queries in _BUNDLE_COMPONENT_QUERIES:
+            if any(phrase in query_lower for phrase in trigger_phrases):
+                targeted_component_queries = component_queries
                 break
 
-        # Use RAG to find the most relevant products for this bundle query
-        bundle_candidates = search_products_rag(query, k=15)
-        bundle_candidates = [get_product(c["product_id"]) for c in bundle_candidates]
-        bundle_candidates = [p for p in bundle_candidates if p]  # filter None
+        if targeted_component_queries:
+            # Run one RAG search per component slot, take the best hit from each
+            seen_ids: set[int] = set()
+            bundle_candidates: list[dict] = []
+            for cq in targeted_component_queries:
+                hits = search_products_rag(cq, k=3)
+                for hit in hits:
+                    p = get_product(hit["product_id"])
+                    if p and p["id"] not in seen_ids:
+                        bundle_candidates.append(p)
+                        seen_ids.add(p["id"])
+                        break  # one product per slot
+        else:
+            # Infer allowed categories from the bundle query so we don't mix e.g. shoes into
+            # a "gaming PC" bundle just because their embeddings score well on "performance".
+            # Map of keyword → whitelist of category names (case-insensitive substring match).
+            _BUNDLE_CATEGORY_HINTS: list[tuple[list[str], list[str]]] = [
+                (["gaming", "pc", "computer", "desk setup", "home office", "office setup",
+                  "work from home", "wfh setup", "workstation"],
+                 ["electronics", "tech", "computer", "accessories", "audio"]),
+                (["workout", "fitness", "gym", "sports kit", "running kit", "exercise"],
+                 ["sports", "fitness", "clothing", "outdoor"]),
+                (["camping", "hiking", "outdoor", "adventure"],
+                 ["outdoor", "sports", "camping", "hiking"]),
+                (["travel", "traveller", "traveler"],
+                 ["travel", "bags", "accessories", "outdoor"]),
+                (["kitchen", "cooking", "baking", "chef"],
+                 ["kitchen", "home", "food"]),
+                (["yoga", "pilates", "meditation"],
+                 ["fitness", "sports", "clothing", "wellness"]),
+            ]
+            bundle_category_whitelist: list[str] | None = None
+            for keywords, cats in _BUNDLE_CATEGORY_HINTS:
+                if any(kw in query_lower for kw in keywords):
+                    bundle_category_whitelist = cats
+                    break
 
-        # Apply category whitelist when we have a strong category signal
-        if bundle_category_whitelist:
-            def _cat_allowed(p: dict) -> bool:
-                cat = (p.get("category") or "").lower()
-                return any(w in cat for w in bundle_category_whitelist)
-            filtered = [p for p in bundle_candidates if _cat_allowed(p)]
-            # Only apply filter if it doesn't wipe out all candidates
-            if filtered:
-                bundle_candidates = filtered
+            # Use RAG to find the most relevant products for this bundle query
+            bundle_candidates = search_products_rag(query, k=15)
+            bundle_candidates = [get_product(c["product_id"]) for c in bundle_candidates]
+            bundle_candidates = [p for p in bundle_candidates if p]  # filter None
+
+            # Apply category whitelist when we have a strong category signal
+            if bundle_category_whitelist:
+                def _cat_allowed(p: dict) -> bool:
+                    cat = (p.get("category") or "").lower()
+                    return any(w in cat for w in bundle_category_whitelist)
+                filtered = [p for p in bundle_candidates if _cat_allowed(p)]
+                # Only apply filter if it doesn't wipe out all candidates
+                if filtered:
+                    bundle_candidates = filtered
 
         # Apply budget filter (single item shouldn't exceed 60% of budget)
         if budget:
@@ -1371,7 +1456,9 @@ def _build_chat_messages(query: str, session_id: str) -> tuple[list, bool, list[
         "You are a knowledgeable, friendly shopping assistant for an online e-commerce store. "
         "Your job is to help customers find products, compare options, answer questions about items, "
         "and provide thoughtful recommendations. "
-        "You are given the customer's REAL current cart contents — always use this for any cart-related questions. "
+        "You are given the customer's REAL current cart contents for reference — "
+        "ONLY mention the cart when the customer explicitly asks about it (e.g. 'what's in my cart', 'show my cart', 'remove from cart'). "
+        "For product search, browsing, or recommendation questions, answer ONLY from the catalog — do NOT reference the cart at all. "
         "Never guess or invent cart contents; only report what is shown in the cart context. "
         "When a cart action has been completed, naturally acknowledge it in your response. "
         "When asked for a bundle or setup, suggest 3-6 complementary products from the catalog, list them with prices, give a total, and ask if they want them all added to cart. "

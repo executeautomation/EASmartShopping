@@ -200,3 +200,8 @@ export async function clearPendingOptions(): Promise<void> {
   const sid = getSessionId();
   await fetch(`${API_BASE}/chat/${sid}/pending`, { method: "DELETE" });
 }
+
+export async function clearChatSession(): Promise<void> {
+  const sid = getSessionId();
+  await fetch(`${API_BASE}/chat/${sid}/session`, { method: "DELETE" });
+}
